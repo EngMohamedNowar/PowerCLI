@@ -190,6 +190,116 @@ machine and running `Install-CLI.ps1` is enough.
 
 ---
 
+## Problems Fixed
+
+This CLI was built to solve real problems encountered on a Windows dev machine.
+Each one is documented so you know *why* the code is shaped the way it is.
+
+### 1. Git branch not showing in the traditional CLI
+
+The default PowerShell prompt does **not** show the current git branch. You had
+to run `git status` or `git branch` every time. PowerCLI's prompt shows the
+branch, ahead/behind counts, modified files and stash count at a glance:
+
+```
+⎇ master ↑1 ✎ ?1 ~2
+```
+
+### 2. `PowerShell 7.7.0` startup banner
+
+When opening PowerShell 7, the banner `PowerShell 7.7.0` + copyright line
+printed on every launch. Fixed two ways:
+
+- Windows Terminal `commandline` now includes `-NoLogo`
+- The profile calls `Clear-Host` (via ANSI escape) on first load, so even
+  `pwsh` opened from the Run dialog is clean
+
+### 3. Icons showing as empty boxes `□`
+
+Oh-My-Posh themes use Nerd Font glyphs. Without a Nerd Font installed, the
+terminal renders them as empty boxes. Fixed by:
+
+- Installing **CaskaydiaCove NF** (v3.5.1) per-user (no admin)
+- Registering it in `HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts`
+- Setting Windows Terminal `profiles.defaults.fontFace = "CaskaydiaCove NF"`
+
+### 4. Profile not found (`$PROFILE` points to OneDrive)
+
+On machines where Documents is redirected to OneDrive, PowerShell's `$PROFILE`
+points to `C:\Users\KING1\OneDrive\Documents\...` but hardcoded paths in
+scripts pointed to `C:\Users\KING1\Documents\...`. Fixed by deriving every
+path from `$PROFILE`:
+
+```powershell
+$profileDir   = Split-Path $PROFILE
+$documentsDir = Split-Path $profileDir
+$SharedDir    = Join-Path $documentsDir 'PowerShell'
+```
+
+Works on any machine, with or without OneDrive.
+
+### 5. Clock not fixed on the right
+
+Oh-My-Posh's right-aligned block renders inside the *same* prompt string,
+leaving the text cursor sitting **after** the clock, so everything you typed
+appeared over there. Fixed by rendering the clock ourselves with ANSI cursor
+positioning, leaving the cursor where you are typing.
+
+### 6. Clock wraps onto the next line after a resize
+
+PSReadLine caches the prompt string and re-draws it on a resize, so the
+clock's absolute column went stale and wrapped. Fixed with a 500 ms timer
+that detects the width change and calls `Invoke-PoshPromptRepaint`, then writes
+`ESC[1B ESC[2K ESC[1A` to clear any stale clock on the next line.
+
+### 7. `iex (irm ...)` not working
+
+`Invoke-Expression` cannot parse scripts with a BOM or `[CmdletBinding()]`.
+Fixed by removing both from the installer and documenting the working one-liner:
+
+```powershell
+iex ((irm <url>).TrimStart([char]0xFEFF))
+```
+
+### 8. `Set-Alias: The AllScope option cannot be removed`
+
+Redefining a built-in alias (like `cat`, `clear`, `gl`) with `-Scope Global`
+throws because those aliases have the `AllScope` option. Fixed by using
+`-Option AllScope` for every alias.
+
+### 9. `Cannot validate argument on parameter 'Function'`
+
+Several key bindings (`CopyOrCancel`, `AddToHistory`, `Ctrl+Space`) are not
+valid in older PSReadLine versions. Fixed by binding each key individually
+inside a try/catch so one failure never blocks the rest.
+
+### 10. `$Error` polluted on every keystroke
+
+`-ErrorAction SilentlyContinue` still writes to `$Error`. `Ignore` does not.
+Native git stderr is recorded in `$Error` even with `2>$null`. Fixed by using
+`-ErrorAction Ignore` everywhere and routing native git calls through
+`cmd /c "... 2>nul"`.
+
+### 11. Oh-My-Posh module not registered
+
+The `oh-my-posh` PowerShell module is not in `$PSModulePath` on a fresh
+install. Fixed by using `oh-my-posh init pwsh` which emits a ready-to-run
+init script — no module registration needed.
+
+### 12. Stray empty git repo in the parent folder
+
+`D:\CarRentalApp\.git` was an empty repo (0 objects, 0 refs, no remote) from
+an accidental `git init`. It made `git status` show `?? C4_CarRentalApp/`
+instead of the real repo's status. `groot` now skips empty wrapper repos
+automatically, and the stray `.git` was removed.
+
+### 13. Console shows `?` instead of symbols
+
+The console codepage was IBM437. Fixed by forcing UTF-8:
+`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`.
+
+---
+
 ## Toggles
 
 | Variable | Effect |
