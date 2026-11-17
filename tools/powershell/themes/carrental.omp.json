@@ -1,0 +1,70 @@
+{
+  "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "blocks": [
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "segments": [
+        {
+          "type": "session",
+          "style": "diamond",
+          "leading_diamond": "\ue0b6",
+          "trailing_diamond": "\ue0b0",
+          "foreground": "#D8DEE9",
+          "background": "#3B4252",
+          "template": " {{ .UserName }} "
+        },
+        {
+          "type": "path",
+          "style": "powerline",
+          "powerline_symbol": "\ue0b0",
+          "foreground": "#88C0D0",
+          "background": "#434C5E",
+          "options": {
+            "folder_separator_icon": " \ue0b1 ",
+            "home_icon": "~",
+            "style": "folder"
+          },
+          "template": " \uf07c {{ .Path }} "
+        },
+        {
+          "type": "git",
+          "style": "powerline",
+          "powerline_symbol": "\ue0b0",
+          "foreground": "#B48EAD",
+          "background": "#4C566A",
+          "options": {
+            "branch_template": "{{ trunc 25 .Branch }}"
+          },
+          "template": " \ue725 <#B48EAD>{{ .HEAD }}</>{{ if .BranchStatus }} <#A3BE8C>{{ .BranchStatus }}</>{{ end }}{{ if .Working.Changed }} <#EBCB8B>\uf044 {{ .Working.String }}</>{{ end }}{{ if and (.Working.Changed) (.Staging.Changed) }}<#EBCB8B>|</>{{ end }}{{ if .Staging.Changed }} <#EBCB8B>\uf046 {{ .Staging.String }}</>{{ end }}{{ if gt .StashCount 0 }} <#88C0D0>\ueb4b {{ .StashCount }}</>{{ end }} "
+        },
+        {
+          "type": "executiontime",
+          "style": "plain",
+          "foreground": "#7C8CA5",
+          "background": "#2E3440",
+          "options": {
+            "always_enabled": false
+          },
+          "template": "<transparent>\ue0b0</> \ueba2 {{ .FormattedMs }}\u2800"
+        },
+        {
+          "type": "status",
+          "style": "plain",
+          "foreground": "#A3BE8C",
+          "foreground_templates": [
+            "{{ if gt .Code 0 }}#BF616A{{ end }}"
+          ],
+          "background": "#2E3440",
+          "options": {
+            "always_enabled": true
+          },
+          "template": "<parentBackground>\ue0b0</> {{ if gt .Code 0 }}\uf00d{{ else }}\uf00c{{ end }} "
+        }
+      ]
+    }
+  ],
+  "console_title_template": "{{ .Shell }} in {{ .Folder }}",
+  "final_space": true,
+  "version": 4
+}

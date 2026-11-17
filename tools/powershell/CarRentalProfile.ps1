@@ -1,0 +1,861 @@
+﻿# ==============================================================================
+#  CarRentalApp :: Professional PowerShell Profile
+#  Shared by Windows PowerShell 5.1 and PowerShell 7+
+#  --------------------------------------------------------------------------
+#  Loaded via:  Microsoft.PowerShell_profile.ps1  ->  . $PROFILE\CarRentalProfile.ps1
+#  Edit this file to customise. Re-load at any time with:  reload-profile
+# ==============================================================================
+
+$ErrorActionPreference = 'Continue'
+
+# ==============================================================================
+#  SECTION 0 :: Environment detection & shared configuration
+# ==============================================================================
+
+$global:CRR = [ordered]@{
+    Root        = 'D:\CarRentalApp\C4_CarRentalApp'
+    Micro       = 'D:\CarRentalApp\C4_CarRentalApp\CarRental.Microservices'
+    Web         = 'D:\CarRentalApp\C4_CarRentalApp\CarRentalApp'
+    Compose     = 'D:\CarRentalApp\C4_CarRentalApp\CarRental.Microservices\docker-compose.yml'
+    LogDir      = (Join-Path $env:TEMP 'CarRentalApp\logs')
+    RunDir      = (Join-Path $env:TEMP 'CarRentalApp\run')
+    Theme       = 'jandedobbeleer'
+    ThemePath   = (Join-Path $env:USERPROFILE 'Documents\PowerShell\themes\carrental.omp.json')
+    ProfilePath = $PSCommandPath
+}
+
+# Service map: name -> @{ Path ; Port ; Swagger }
+$global:CRRServices = [ordered]@{
+    'app'          = @{ Path = 'D:\CarRentalApp\C4_CarRentalApp\CarRentalApp';                                                                       Port = 5077;  Swagger = 'http://localhost:5077/swagger' }
+    'booking'      = @{ Path = 'D:\CarRentalApp\C4_CarRentalApp\CarRental.Microservices\src\Services\Booking\Booking.API';                       Port = 60481; Swagger = 'http://localhost:60481/swagger' }
+    'catalog'      = @{ Path = 'D:\CarRentalApp\C4_CarRentalApp\CarRental.Microservices\src\Services\Catalog\Catalog.API';                       Port = 60480; Swagger = 'http://localhost:60480/swagger' }
+    'customer'     = @{ Path = 'D:\CarRentalApp\C4_CarRentalApp\CarRental.Microservices\src\Services\Customer\Customer.API';                     Port = 60478; Swagger = 'http://localhost:60478/swagger' }
+    'notification' = @{ Path = 'D:\CarRentalApp\C4_CarRentalApp\CarRental.Microservices\src\Services\Notification\Notification.API';               Port = 60479; Swagger = 'http://localhost:60479/swagger' }
+}
+
+$global:CRRBoxed     = ([char]0x2502)  # |
+$global:CRRCheck     = ([char]0x2714)  # v
+$global:CRRCross     = ([char]0x2718)  # x
+$global:CRRBullet    = ([char]0x2022)  # *
+$global:CRRArrow     = ([char]0x2192)  # ->
+$global:CRRSeparator = ([char]0x2500)  # -
+
+$global:CRRLine  = ($global:CRRSeparator.ToString() * 76)
+$global:CRRLine2 = ($global:CRRSeparator.ToString() * 50)
+
+foreach ($d in @($global:CRR.LogDir, $global:CRR.RunDir)) {
+    if (-not (Test-Path $d)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+}
+
+# ==============================================================================
+#  SECTION 1 :: PSReadLine  (history, key bindings, autocompletion)
+# ==============================================================================
+
+try {
+    if (Get-Module -ListAvailable -Name PSReadLine) {
+        Import-Module PSReadLine -ErrorAction Stop
+
+        $psrl = Get-Module PSReadLine
+        $hasPrediction = ([version]$psrl.Version -ge [version]'2.2.0')
+
+        Set-PSReadLineOption -EditMode Windows -ErrorAction Ignore
+        Set-PSReadLineOption -MaximumHistoryCount 20000 -ErrorAction Ignore
+        Set-PSReadLineOption -HistorySearchCursorMovesToEnd -ErrorAction Ignore
+        Set-PSReadLineOption -BellStyle None -ErrorAction Ignore
+        Set-PSReadLineOption -ShowToolTips -ErrorAction Ignore
+
+        # Predictive suggestions need a real (non-redirected) VT console.
+        $canPredict = $hasPrediction -and -not [Console]::IsOutputRedirected
+        if ($canPredict) {
+            try { Set-PSReadLineOption -PredictionSource History -ErrorAction Stop }
+            catch { try { Set-PSReadLineOption -PredictionSource HistoryAndPlugin -ErrorAction Stop } catch { } }
+            try { Set-PSReadLineOption -PredictionViewStyle ListView -ErrorAction Stop } catch { }
+        }
+
+        # Key bindings. Each is applied independently so that a binding
+        # unsupported by the installed PSReadLine version never blocks the rest.
+        $bind = {
+            param([string]$Key, [string]$Fn)
+            try { Set-PSReadLineKeyHandler -Key $Key -Function $Fn -ErrorAction Stop }
+            catch { Write-Verbose "Key binding '$Key' -> '$Fn' skipped: $($_.Exception.Message)" }
+        }
+        & $bind 'Tab'             'MenuComplete'
+        & $bind 'UpArrow'         'HistorySearchBackward'
+        & $bind 'DownArrow'       'HistorySearchForward'
+        & $bind 'Ctrl+UpArrow'    'HistorySearchBackward'
+        & $bind 'Ctrl+DownArrow'  'HistorySearchForward'
+        & $bind 'Ctrl+LeftArrow'  'BackwardWord'
+        & $bind 'Ctrl+RightArrow' 'ForwardWord'
+        & $bind 'Alt+LeftArrow'   'PreviousHistory'
+        & $bind 'Alt+RightArrow'  'NextHistory'
+        & $bind 'Ctrl+d'          'DeleteCharOrExit'
+        & $bind 'Ctrl+k'          'KillLine'
+        & $bind 'Ctrl+c'          'CopyOrCancelLine'
+        & $bind 'Ctrl+r'          'ReverseSearchHistory'
+        & $bind 'Ctrl+f'          'ForwardChar'
+        & $bind 'Ctrl+b'          'BackwardChar'
+    }
+} catch {
+    Write-Verbose "PSReadLine setup skipped: $_"
+}
+
+# ==============================================================================
+#  SECTION 2 :: Prompt  (Oh-My-Posh with a clean native fallback)
+# ==============================================================================
+
+function global:Get-GitOutput {
+    <#
+        Runs git and returns its stdout only.
+        Native stderr is routed through cmd so that a "not a git repository"
+        message never lands in $Error (which would otherwise pollute the
+        prompt on every keystroke).
+    #>
+    param(
+        [Parameter(Mandatory, Position = 0)][string]$GitArgs,
+        [string]$Directory
+    )
+    if (-not (Get-Command git -ErrorAction Ignore)) { return @() }
+    $prefix = ''
+    if ($Directory) { $prefix = '-C "' + $Directory + '" ' }
+    if ($env:OS -eq 'Windows_NT') {
+        return @(& cmd /c "git $prefix$GitArgs 2>nul")
+    }
+    return @(& git $prefix.Trim().Split(' ') $GitArgs.Split(' ') 2>&1 |
+             Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] })
+}
+
+function Get-CrrGitInfo {
+    if (-not (Get-Command git -ErrorAction Ignore)) { return $null }
+    try {
+        $branch = (Get-GitOutput 'rev-parse --abbrev-ref HEAD' | Select-Object -First 1)
+        if (-not $branch) { return $null }
+        $dirty = (Get-GitOutput 'status --porcelain')
+        $ahead = 0; $behind = 0
+        $track = (Get-GitOutput 'rev-list --left-right --count "@{upstream}...HEAD"' | Select-Object -First 1)
+        if ($track) {
+            $parts = $track -split '\s+'
+            if ($parts.Count -ge 2) { $behind = [int]$parts[0]; $ahead = [int]$parts[1] }
+        }
+        return [pscustomobject]@{
+            Branch = $branch
+            Dirty  = [bool]$dirty
+            Ahead  = $ahead
+            Behind = $behind
+        }
+    } catch { return $null }
+}
+
+$global:CRRUseOmp = $false
+try {
+    # Set $env:CRR_NO_OMP = '1' to force the native fallback prompt.
+    if ($env:CRR_NO_OMP -ne '1' -and (Get-Command oh-my-posh -ErrorAction Ignore)) {
+        # Modern approach: `oh-my-posh init` emits a ready-to-run init script.
+        # No PowerShell module registration required.
+        $themeConfig = if (Test-Path $global:CRR.ThemePath) { $global:CRR.ThemePath }
+                        else { $global:CRR.Theme }
+        $initScript = (& oh-my-posh init pwsh --config $themeConfig 2>$null | Out-String)
+        if ($initScript -and $initScript.Trim().Length -gt 0) {
+            Invoke-Expression $initScript
+            $global:CRRUseOmp = $true
+        }
+    }
+} catch {
+    Write-Verbose "Oh-My-Posh setup skipped: $_"
+}
+
+if (-not $global:CRRUseOmp) {
+    # Native fallback prompt - two-line, colourised, git aware.
+    # Uses the same Nord palette as the Oh-My-Posh theme.
+    function global:prompt {
+        $e = [char]27
+        $cReset = "$($e)[0m"; $cRed    = "$($e)[91m"; $cGreen  = "$($e)[92m"
+        $cYellow = "$($e)[93m"; $cCyan   = "$($e)[96m"; $cGray   = "$($e)[90m"
+        $cBlue   = "$($e)[94m"; $cMauve  = "$($e)[95m"; $cIce    = "$($e)[96m"
+
+        $cwd  = $ExecutionContext.SessionState.Path.CurrentLocation.Path
+        $disp = $cwd
+        if ($disp.StartsWith($HOME, [StringComparison]::OrdinalIgnoreCase)) {
+            $disp = '~' + $disp.Substring($HOME.Length)
+        }
+
+        $admin = ''
+        if (Test-Path Variable:\__CrrAdmin) { $admin = " $cRed[ADMIN]$cReset" }
+
+        $git = Get-CrrGitInfo
+        $gitTxt = ''
+        if ($git) {
+            $mark = ''
+            if ($git.Dirty)        { $mark  = " $cYellow*$cReset" }
+            if ($git.Ahead  -gt 0) { $mark += " $cGreen+$($git.Ahead)$cReset" }
+            if ($git.Behind -gt 0) { $mark += " $cRed-$($git.Behind)$cReset" }
+            $gitTxt = "$cMauve$($git.Branch)$cReset$mark"
+        }
+
+        "$cGray$($PSVersionTable.PSVersion)$cReset$admin  $gitTxt`n$cIce$disp$cReset`n$cGray>$cReset "
+    }
+}
+
+# ---------------------------------------------------------------------------
+#  Right-aligned clock
+#  ---------------------------------------------------------------------------
+#  Oh-My-Posh renders a right-aligned block as part of the SAME prompt string,
+#  which leaves the text cursor sitting *after* the clock - so everything you
+#  type would appear over there. Instead we render the clock ourselves and use
+#  ANSI cursor positioning to put it on the right while leaving the cursor
+#  where the user is typing. PSReadLine honours the escape sequences.
+# ---------------------------------------------------------------------------
+
+function global:Get-CrrVisibleWidth {
+    param([string]$Text)
+    if (-not $Text) { return 0 }
+    $plain = [regex]::Replace($Text, '\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)', '')  # OSC
+    $plain = [regex]::Replace($plain, '\x1b\[[0-9;:?]*[ -\/]*[@-~]', '')      # CSI
+    return $plain.Length
+}
+
+function global:Get-CrrTerminalWidth {
+    try {
+        $w = $Host.UI.RawUI.WindowSize.Width
+        if ($w -gt 20) { return $w }
+    } catch { }
+    return 120
+}
+
+# Set $env:CRR_NO_CLOCK = '1' to hide the clock.
+$global:CRRClock = ($env:CRR_NO_CLOCK -ne '1')
+$global:CRRWidthChanged = $false
+$global:CRRLastPromptWidth = $null
+
+if ($global:CRRUseOmp -and $global:CRRClock) {
+    # Capture Oh-My-Posh's prompt *before* replacing it.
+    # The script block keeps its original session state (the omp module scope),
+    # so calling it still resolves $script:* variables correctly.
+    $ompPromptCmd = Get-Command prompt -ErrorAction Ignore
+    if ($ompPromptCmd -and $ompPromptCmd.CommandType -eq 'Function') {
+        $global:CRROmpPromptBlock = $ompPromptCmd.ScriptBlock
+
+        function global:prompt {
+            $left = (& $global:CRROmpPromptBlock) -join "`n"
+            if (-not $left) { return $left }
+
+            $e     = [char]27
+            $clock = "$($e)[38;2;124;140;165m $([char]0xF017) $(Get-Date -Format 'HH:mm:ss')$($e)[0m"
+            $cw    = Get-CrrVisibleWidth $clock
+            $lw    = Get-CrrVisibleWidth $left
+            $tw    = Get-CrrTerminalWidth
+
+            # Not enough room - skip the clock rather than let it collide.
+            if (($tw - $lw - $cw) -lt 2) {
+                $global:CRRLastPromptWidth = $tw
+                return $left
+            }
+
+            # If the terminal width changed since the last prompt, a stale clock
+            # from the previous (wider) render may be sitting on the next line.
+            # Clear that line before drawing the new prompt.
+            $clear = ''
+            if ($global:CRRWidthChanged) {
+                $clear = "$($e)[1B$($e)[2K$($e)[1A"
+                $global:CRRWidthChanged = $false
+            }
+            $global:CRRLastPromptWidth = $tw
+
+            # Draw the clock at the right edge, then move the cursor back to
+            # just after the prompt so typing behaves normally.
+            "$clear$left$($e)[$($tw - $cw + 1)`G$clock$($e)[$($lw + 1)`G"
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+#  Keep the clock anchored when the terminal is resized
+#  ---------------------------------------------------------------------------
+#  PSReadLine caches the prompt string and simply re-draws it on a resize, so
+#  the absolute column the clock was placed at goes stale - the clock ends up
+#  wrapped onto the next line or floating in the middle of the screen.
+#  A small timer watches the console width and re-invokes the prompt whenever
+#  it changes, which re-anchors the clock to the new right edge.
+# ---------------------------------------------------------------------------
+
+function global:Sync-CrrPromptWidth {
+    try {
+        $w = Get-CrrTerminalWidth
+        if (-not $w -or $w -eq $global:CRRLastWidth) { return }
+
+        # Only re-paint while PSReadLine is actually waiting for input.
+        $line = $null
+        $state = 0
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$state) | Out-Null
+
+        # Clear the line below - a stale clock from the previous (wider) render
+        # may have wrapped onto it when the terminal shrank.
+        $e = [char]27
+        Write-Host -NoNewline "$($e)[1B$($e)[2K$($e)[1A"
+
+        $global:CRRLastWidth = $w
+        $global:CRRWidthChanged = $true      # force the next prompt to clear a stale clock
+        if (Get-Command Invoke-PoshPromptRepaint -ErrorAction Ignore) {
+            Invoke-PoshPromptRepaint
+        } else {
+            [Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()
+        }
+        # Clear any stale clock that may have wrapped onto the next line.
+        # PSReadLine's repaint only clears the prompt line itself.
+        $e = [char]27
+        Write-Host -NoNewline "$($e)[1B$($e)[2K$($e)[1A"
+    } catch {
+        # Never let the watcher break the session.
+    }
+}
+
+$global:CRRLastWidth = Get-CrrTerminalWidth
+try {
+    $crrTimer = New-Object System.Timers.Timer
+    $crrTimer.Interval = 500
+    $null = Register-ObjectEvent -InputObject $crrTimer -EventName 'Elapsed' -Action {
+        Sync-CrrPromptWidth
+    }
+    $crrTimer.Start()
+    $global:CRRCrrTimer = $crrTimer
+} catch {
+    Write-Verbose "Clock resize watcher not started: $_"
+}
+
+# ==============================================================================
+#  SECTION 3 :: Environment variables & console encoding
+# ==============================================================================
+
+# UTF-8 console so box-drawing / emoji glyphs render correctly instead of '?'.
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {
+    Write-Verbose "Console encoding could not be set to UTF-8: $_"
+}
+
+if (-not $env:DOTNET_CLI_TELEMETRY_OPTOUT)          { $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1' }
+if (-not $env:DOTNET_NOLOGO)                          { $env:DOTNET_NOLOGO = '1' }
+if (-not $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE)      { $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1' }
+
+$env:PATH = (@(
+    'C:\Program Files\Git\cmd'
+    'C:\Program Files\Git\bin'
+    'C:\Program Files\dotnet'
+    "$env:LOCALAPPDATA\Programs\Git\cmd"
+    "$env:LOCALAPPDATA\Programs\oh-my-posh\bin"
+    $env:PATH
+) | Where-Object { $_ } | Select-Object -Unique) -join ';'
+
+# ==============================================================================
+#  SECTION 4 :: Core aliases
+# ==============================================================================
+
+Set-Alias -Name ll    -Value Get-ChildItem -Option AllScope -Force
+Set-Alias -Name la    -Value Get-ChildItem -Option AllScope -Force
+Set-Alias -Name which -Value Get-Command    -Option AllScope -Force
+
+# NOTE: aliases take precedence over functions in PowerShell, so '..' and '...'
+# are defined as functions only (an alias cannot accept a positional argument).
+function global:..  { Set-Location -Path '..' }
+function global:... { Set-Location -Path '..\..' }
+
+# ==============================================================================
+#  SECTION 5 :: General helper functions
+# ==============================================================================
+
+function global:mkcd {
+    param([Parameter(Mandatory, Position = 0)][string]$Path)
+    if (-not (Test-Path $Path)) { New-Item -ItemType Directory -Force -Path $Path | Out-Null }
+    Set-Location -Path $Path
+    Write-Host "$global:CRRBoxed $($ExecutionContext.SessionState.Path.CurrentLocation.Path)" -ForegroundColor DarkCyan
+}
+
+function global:touch {
+    param([Parameter(Mandatory, Position = 0)][string]$Path)
+    if (Test-Path $Path) { (Get-Item $Path).LastWriteTime = Get-Date }
+    else { New-Item -ItemType File -Force -Path $Path | Out-Null }
+}
+
+function global:ff {
+    param(
+        [Parameter(Mandatory, Position = 0)][string]$Name,
+        [Parameter(Position = 1)][string]$Path = '.',
+        [switch]$Shallow
+    )
+    Get-ChildItem -Path $Path -Filter $Name -Recurse:(-not $Shallow) -Force -ErrorAction Ignore
+}
+
+function global:grep {
+    param(
+        [Parameter(Mandatory, Position = 0)][string]$Pattern,
+        [Parameter(Position = 1)][string]$Path = '.',
+        [string]$Include,
+        [switch]$CaseSensitive
+    )
+    $fileParams = @{ Path = $Path; Recurse = $true; File = $true; ErrorAction = 'SilentlyContinue' }
+    if ($Include) { $fileParams['Include'] = $Include }
+    Get-ChildItem @fileParams | Select-String -Pattern $Pattern -CaseSensitive:$CaseSensitive -ErrorAction Ignore
+}
+
+function global:json {
+    param([Parameter(Mandatory, Position = 0)][string]$Path)
+    Get-Content -Path $Path -Raw | ConvertFrom-Json | ConvertTo-Json -Depth 12
+}
+
+function global:ports {
+    param([string]$Port = '')
+    $conns = Get-NetTCPConnection -State Listen -ErrorAction Ignore
+    if ($Port) { $conns = $conns | Where-Object { $_.LocalPort -eq [int]$Port } }
+    $conns |
+        Select-Object LocalAddress, LocalPort,
+            @{n='Process';e={ (Get-Process -Id $_.OwningProcess -ErrorAction Ignore).ProcessName }} |
+        Sort-Object LocalPort | Format-Table -AutoSize
+}
+
+function global:killport {
+    param([Parameter(Mandatory, Position = 0)][int]$Port)
+    $procIds = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Ignore |
+               Select-Object -ExpandProperty OwningProcess -Unique
+    if (-not $procIds) { Write-Host "Nothing listening on port $Port" -ForegroundColor DarkGray; return }
+    foreach ($procId in $procIds) {
+        $p = Get-Process -Id $procId -ErrorAction Ignore
+        if ($p) {
+            Write-Host "Killing $($p.ProcessName) (PID $procId) on port $Port" -ForegroundColor Yellow
+            Stop-Process -Id $procId -Force -ErrorAction Ignore
+        }
+    }
+}
+
+function global:ipinfo {
+    try { Write-Host "Public : " -NoNewline; Write-Host (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 5) }
+    catch { Write-Host "Public : (offline)" }
+    Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Ignore |
+        Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
+        Select-Object InterfaceAlias, IPAddress, PrefixLength | Format-Table -AutoSize
+}
+
+function global:now { Get-Date -Format 'yyyy-MM-dd HH:mm:ss' }
+function global:utc  { (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') }
+
+function global:history-search {
+    param([Parameter(Mandatory, Position = 0)][string]$Term)
+    Get-History | Where-Object { $_.CommandLine -like "*$Term*" } |
+        Select-Object -Last 20 | Format-Table Id, CommandLine -AutoSize -Wrap
+}
+
+function global:reload-profile {
+    if ($global:CRR.ProfilePath -and (Test-Path $global:CRR.ProfilePath)) {
+        . $global:CRR.ProfilePath
+        Write-Host "$global:CRRCheck Profile reloaded" -ForegroundColor Green
+    } else {
+        Write-Host 'Profile path not found' -ForegroundColor Red
+    }
+}
+
+# ==============================================================================
+#  SECTION 6 :: Git helpers
+# ==============================================================================
+
+if (Get-Command git -ErrorAction Ignore) {
+    function global:git-status   { git status -sb }
+    function global:git-branch   { git branch -v }
+    function global:git-log      { git log --oneline --graph --decorate --all -n 30 }
+    function global:git-diff     { git diff }
+    function global:git-staged   { git diff --staged }
+    function global:git-add      { param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Paths) git add -- @Paths }
+    function global:git-commit   { param([Parameter(Mandatory, Position = 0)][string]$Message) git commit -m $Message }
+    function global:git-add-commit {
+        param([Parameter(Mandatory, Position = 0)][string]$Message)
+        git add --all
+        git commit -m $Message
+    }
+    function global:git-pull     { git pull --rebase --autostash }
+    function global:git-push     { git push }
+    function global:git-checkout { param([Parameter(Mandatory, Position = 0)][string]$Branch) git checkout $Branch }
+    function global:git-stash    { param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest) git stash -- @Rest }
+    function global:git-root     {
+        $r = (Get-GitOutput 'rev-parse --show-toplevel' | Select-Object -First 1)
+        # If we landed in an empty "wrapper" repository (no commits), look for a
+        # real repository nested underneath and use that instead.
+        if ($r -and -not (Get-GitOutput 'rev-list -n 1 HEAD' -Directory $r)) {
+            $nested = @(Get-ChildItem -Path $r -Directory -Force -ErrorAction Ignore |
+                        Where-Object { Test-Path (Join-Path $_.FullName '.git') } |
+                        Where-Object { Get-GitOutput 'rev-list -n 1 HEAD' -Directory $_.FullName })
+            if ($nested.Count -gt 0) { $r = $nested[0].FullName }
+        }
+        if ($r) { Set-Location $r } else { Write-Host 'Not a git repository' -ForegroundColor Red }
+    }
+    function global:git-undo     { git reset --soft HEAD~1 }
+    function global:git-root-set { param([Parameter(Mandatory, Position = 0)][string]$Name) git checkout -b $Name }
+
+    # NOTE: names deliberately avoid PowerShell built-in aliases
+    # (gl = Get-Location, gc = Get-Content, gp = Get-ItemProperty).
+    Set-Alias -Name gs     -Value git-status   -Option AllScope -Force
+    Set-Alias -Name gb     -Value git-branch   -Option AllScope -Force
+    Set-Alias -Name glog   -Value git-log      -Option AllScope -Force
+    Set-Alias -Name gd     -Value git-diff     -Option AllScope -Force
+    Set-Alias -Name gadd   -Value git-add      -Option AllScope -Force
+    Set-Alias -Name gcommit -Value git-commit   -Option AllScope -Force
+    Set-Alias -Name gac    -Value git-add-commit -Option AllScope -Force
+    Set-Alias -Name gpull  -Value git-pull     -Option AllScope -Force
+    Set-Alias -Name gpush  -Value git-push     -Option AllScope -Force
+    Set-Alias -Name gco    -Value git-checkout -Option AllScope -Force
+    Set-Alias -Name groot  -Value git-root     -Option AllScope -Force
+    Set-Alias -Name gnew   -Value git-root-set -Option AllScope -Force
+    Set-Alias -Name gst    -Value git-stash    -Option AllScope -Force
+} else {
+    Write-Warning "Git not found - git helpers disabled. Install with: winget install Git.Git"
+}
+
+# ==============================================================================
+#  SECTION 7 :: .NET / dotnet helpers
+# ==============================================================================
+
+if (Get-Command dotnet -ErrorAction Ignore) {
+    function global:build     { param([string]$Proj = '.', [string]$Cfg = 'Debug') dotnet build $Proj -c $Cfg }
+    function global:run       { param([string]$Proj = '.') dotnet run --project $Proj }
+    function global:watch     { param([string]$Proj = '.') dotnet watch --project $Proj }
+    function global:test      { param([string]$Proj = '.') dotnet test $Proj }
+    function global:restore   { param([string]$Proj = '.') dotnet restore $Proj }
+    function global:publish   { param([string]$Proj = '.', [string]$Out = './publish') dotnet publish $Proj -c Release -o $Out }
+    function global:clean     { param([string]$Proj = '.') dotnet clean $Proj }
+    function global:packlist  { param([string]$Proj = '.') dotnet list $Proj package --include-transitive }
+    function global:outdated  { param([string]$Proj = '.') dotnet list $Proj package --outdated }
+    function global:dotnetinfo {
+        Write-Host "SDK      : " -NoNewline; dotnet --version
+        Write-Host "Runtimes :"
+        dotnet --list-runtimes | ForEach-Object { Write-Host "   $_" }
+    }
+    Set-Alias -Name b  -Value build   -Option AllScope -Force
+    Set-Alias -Name br -Value run     -Option AllScope -Force
+    Set-Alias -Name t  -Value test    -Option AllScope -Force
+    Set-Alias -Name rw -Value restore -Option AllScope -Force
+}
+
+# ==============================================================================
+#  SECTION 8 :: Docker helpers
+# ==============================================================================
+
+if (Get-Command docker -ErrorAction Ignore) {
+    function global:dps { docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" }
+    function global:dpa { docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" }
+    function global:dcl { param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest) docker compose @Rest }
+    function global:docker-clean {
+        docker system prune -af --volumes
+    }
+    function global:docker-stop-all {
+        $ids = docker ps -q 2>$null
+        if ($ids) { docker stop $ids } else { Write-Host 'No running containers' -ForegroundColor DarkGray }
+    }
+    Set-Alias -Name dp -Value dps -Option AllScope -Force
+}
+
+# ==============================================================================
+#  SECTION 9 :: CarRentalApp project helpers
+# ==============================================================================
+
+function global:crr {
+    if (Test-Path $global:CRR.Root) {
+        Set-Location -Path $global:CRR.Root
+        Write-Host "$global:CRRBoxed $($global:CRR.Root)" -ForegroundColor DarkCyan
+    } else {
+        Write-Host "Project root not found: $($global:CRR.Root)" -ForegroundColor Red
+    }
+}
+function global:crr-micro { Set-Location -Path $global:CRR.Micro }
+function global:crr-web   { Set-Location -Path $global:CRR.Web }
+function global:crr-svc {
+    param([Parameter(Mandatory, Position = 0)][string]$Name)
+    $key = $Name.ToLower()
+    if ($global:CRRServices.Contains($key)) {
+        Set-Location -Path $global:CRRServices[$key].Path
+    } else {
+        Write-Host "Unknown service '$Name'. Available: $($global:CRRServices.Keys -join ', ')" -ForegroundColor Red
+    }
+}
+
+# --- Infrastructure (docker compose) ----------------------------------------
+
+function global:Test-DockerReady {
+    if (-not (Get-Command docker -ErrorAction Ignore)) { return $false }
+    if ($env:OS -eq 'Windows_NT') {
+        # Route through cmd so the daemon error never becomes a PowerShell error record.
+        & cmd /c "docker info >nul 2>nul"
+    } else {
+        & docker info *> $null 2>&1
+    }
+    return ($LASTEXITCODE -eq 0)
+}
+
+function global:infra-up {
+    if (-not (Test-DockerReady)) {
+        Write-Host 'Docker is installed but the daemon is not running.' -ForegroundColor Yellow
+        Write-Host 'Start Docker Desktop, wait for the whale icon to settle, then run infra-up again.' -ForegroundColor DarkGray
+        return
+    }
+    Write-Host 'Starting infrastructure (SQL Server + RabbitMQ)...' -ForegroundColor Cyan
+    Push-Location $global:CRR.Micro
+    try { docker compose up -d sqlserver rabbitmq; docker compose ps } finally { Pop-Location }
+}
+function global:infra-down {
+    if (-not (Test-DockerReady)) { Write-Host 'Docker daemon is not running.' -ForegroundColor Yellow; return }
+    Push-Location $global:CRR.Micro
+    try { docker compose down } finally { Pop-Location }
+}
+function global:infra-logs {
+    param([string]$Service = '')
+    if (-not (Test-DockerReady)) { Write-Host 'Docker daemon is not running.' -ForegroundColor Yellow; return }
+    Push-Location $global:CRR.Micro
+    try { if ($Service) { docker compose logs -f $Service } else { docker compose logs -f } } finally { Pop-Location }
+}
+function global:infra-reset {
+    if (-not (Test-DockerReady)) { Write-Host 'Docker daemon is not running.' -ForegroundColor Yellow; return }
+    Push-Location $global:CRR.Micro
+    try {
+        docker compose down -v
+        Write-Host 'Volumes removed - a fresh database is created on the next infra-up.' -ForegroundColor Yellow
+    } finally { Pop-Location }
+}
+function global:rabbit-ui { Start-Process 'http://localhost:15672' }
+
+# --- Running services --------------------------------------------------------
+
+function global:up {
+    param(
+        [Parameter(Position = 0)][string]$Service = 'app',
+        [switch]$Detach
+    )
+    $key = $Service.ToLower()
+    if (-not $global:CRRServices.Contains($key)) {
+        Write-Host "Unknown service '$Service'. Available: $($global:CRRServices.Keys -join ', ')" -ForegroundColor Red
+        return
+    }
+    $svc = $global:CRRServices[$key]
+    Write-Host "Starting '$key' on http://localhost:$($svc.Port) ..." -ForegroundColor Cyan
+
+    # Microservices need SQL Server + RabbitMQ from the compose stack.
+    if ($key -ne 'app' -and -not (Test-DockerReady)) {
+        Write-Host "Hint: '$key' needs SQL Server and RabbitMQ - run 'infra-up' first." -ForegroundColor Yellow
+    }
+
+    if ($Detach) {
+        $dotnetExe = (Get-Command dotnet -ErrorAction Ignore).Source
+        if (-not $dotnetExe) { Write-Host 'dotnet not found' -ForegroundColor Red; return }
+        $logFile = Join-Path $global:CRR.LogDir "$key.log"
+        $errFile = Join-Path $global:CRR.LogDir "$key.err.log"
+        $proc = Start-Process -FilePath $dotnetExe `
+            -ArgumentList @('run', '--project', $svc.Path) `
+            -WorkingDirectory $svc.Path `
+            -RedirectStandardOutput $logFile -RedirectStandardError $errFile `
+            -PassThru -WindowStyle Hidden
+        Set-Content -Path (Join-Path $global:CRR.RunDir "$key.pid") -Value $proc.Id
+        Write-Host "$global:CRRCheck '$key' started (PID $($proc.Id)) - log: $logFile" -ForegroundColor Green
+    } else {
+        Push-Location $svc.Path
+        try { dotnet run --project $svc.Path } finally { Pop-Location }
+    }
+}
+
+function global:up-all {
+    Write-Host 'Launching all microservices in the background...' -ForegroundColor Cyan
+    foreach ($k in @('booking', 'catalog', 'customer', 'notification')) { up $k -Detach }
+    Start-Sleep -Seconds 3
+    urls
+}
+
+function global:down {
+    $killed = 0
+    Get-ChildItem (Join-Path $global:CRR.RunDir '*.pid') -ErrorAction Ignore | ForEach-Object {
+        $key   = $_.BaseName
+        $procId = (Get-Content $_.FullName -ErrorAction Ignore)
+        $p = Get-Process -Id $procId -ErrorAction Ignore
+        if ($p) {
+            Write-Host "Stopping '$key' (PID $procId)" -ForegroundColor Yellow
+            Stop-Process -Id $procId -Force -ErrorAction Ignore
+            $killed++
+        }
+        Remove-Item $_.FullName -Force -ErrorAction Ignore
+    }
+    if ($killed -eq 0) { Write-Host 'No managed services are running.' -ForegroundColor DarkGray }
+}
+
+function global:logs {
+    param(
+        [Parameter(Position = 0)][string]$Service = '',
+        [int]$Lines = 60,
+        [switch]$Follow
+    )
+    $file = if ($Service) { Join-Path $global:CRR.LogDir "$($Service.ToLower()).log" }
+            else { Join-Path $global:CRR.LogDir '*.log' }
+    if (-not (Test-Path $file)) { Write-Host "No log file found: $file" -ForegroundColor Red; return }
+    if ($Follow -and $Service) { Get-Content $file -Tail $Lines -Wait }
+    else { Get-Content $file -Tail $Lines }
+}
+
+function global:urls {
+    Write-Host ''
+    Write-Host '  CarRentalApp - Service URLs' -ForegroundColor Cyan
+    Write-Host "  $global:CRRLine" -ForegroundColor DarkCyan
+    foreach ($k in $global:CRRServices.Keys) {
+        $s = $global:CRRServices[$k]
+        Write-Host ("  {0,-13}" -f $k) -NoNewline
+        Write-Host ("{0,-9}" -f "http://localhost:$($s.Port)") -ForegroundColor Green -NoNewline
+        Write-Host "  swagger: $($s.Swagger)" -ForegroundColor DarkGray
+    }
+    Write-Host "  $global:CRRLine" -ForegroundColor DarkCyan
+    Write-Host '  RabbitMQ UI : http://localhost:15672  (guest / guest)' -ForegroundColor DarkGray
+    Write-Host '  SQL Server  : localhost:1433  (sa / Your_password123)' -ForegroundColor DarkGray
+    Write-Host ''
+}
+
+function global:open-swagger {
+    param([Parameter(Position = 0)][string]$Service = 'app')
+    $key = $Service.ToLower()
+    if (-not $global:CRRServices.Contains($key)) {
+        Write-Host "Unknown service '$Service'. Available: $($global:CRRServices.Keys -join ', ')" -ForegroundColor Red
+        return
+    }
+    Start-Process $global:CRRServices[$key].Swagger
+}
+
+function global:build-all {
+    Write-Host 'Building solution...' -ForegroundColor Cyan
+    dotnet build (Join-Path $global:CRR.Micro 'CarRental.Microservices.slnx') -c Debug
+    dotnet build (Join-Path $global:CRR.Web 'CarRentalApp.csproj') -c Debug
+}
+
+function global:test-all {
+    dotnet test (Join-Path $global:CRR.Micro 'CarRental.Microservices.slnx')
+}
+
+function global:clean-all {
+    dotnet clean (Join-Path $global:CRR.Micro 'CarRental.Microservices.slnx')
+    dotnet clean (Join-Path $global:CRR.Web 'CarRentalApp.csproj')
+    Get-ChildItem -Path $global:CRR.Root -Recurse -Directory -Filter 'bin' -ErrorAction Ignore |
+        Remove-Item -Recurse -Force -ErrorAction Ignore
+    Get-ChildItem -Path $global:CRR.Root -Recurse -Directory -Filter 'obj' -ErrorAction Ignore |
+        Remove-Item -Recurse -Force -ErrorAction Ignore
+    Write-Host "$global:CRRCheck Clean complete" -ForegroundColor Green
+}
+
+function global:db-list {
+    param([string]$Server = 'localhost,1433', [string]$User = 'sa', [string]$Password = 'Your_password123')
+    sqlcmd -S $Server -U $User -P $Password -C -Q "SELECT name FROM sys.databases WHERE name LIKE 'CarRental%';" -W -s"|"
+}
+
+function global:db-query {
+    param(
+        [Parameter(Mandatory, Position = 0)][string]$Query,
+        [string]$Server = 'localhost,1433',
+        [string]$User = 'sa',
+        [string]$Password = 'Your_password123'
+    )
+    sqlcmd -S $Server -U $User -P $Password -C -Q $Query -W -s"|"
+}
+
+function global:db-migrate {
+    param([string]$Proj = '.', [string]$Name = 'Init')
+    Push-Location $Proj
+    try { dotnet ef database update } finally { Pop-Location }
+}
+
+function global:status {
+    Write-Host ''
+    Write-Host '  CarRentalApp - environment status' -ForegroundColor Cyan
+    Write-Host "  $global:CRRLine2" -ForegroundColor DarkCyan
+    $gitState = if (-not (Get-Command git -ErrorAction Ignore)) {
+        'not installed'
+    } else {
+        $b = (Get-GitOutput 'rev-parse --abbrev-ref HEAD' | Select-Object -First 1)
+        if ($b) {
+            $b
+        } else {
+            # Not inside a repo here - fall back to the project's own repository.
+            $pb = (Get-GitOutput 'rev-parse --abbrev-ref HEAD' -Directory $global:CRR.Root | Select-Object -First 1)
+            if ($pb) { "$pb  (project repo)" } else { 'not a repository' }
+        }
+    }
+    $dkState = if (Get-Command docker -ErrorAction Ignore) { (docker --version) } else { 'not installed' }
+    $dnState = if (Get-Command dotnet -ErrorAction Ignore) { (dotnet --version) } else { 'not installed' }
+    Write-Host "  $($global:CRRBoxed) Root      : $($global:CRR.Root)" -ForegroundColor DarkGray
+    Write-Host "  $($global:CRRBoxed) Git       : $gitState" -ForegroundColor DarkGray
+    Write-Host "  $($global:CRRBoxed) Docker    : $dkState" -ForegroundColor DarkGray
+    Write-Host "  $($global:CRRBoxed) .NET SDK  : $dnState" -ForegroundColor DarkGray
+    $themeUsed = if (Test-Path $global:CRR.ThemePath) { Split-Path $global:CRR.ThemePath -Leaf }
+                 else { $global:CRR.Theme }
+    Write-Host "  $($global:CRRBoxed) Prompt    : $(if ($global:CRRUseOmp) { "Oh-My-Posh ($themeUsed)" } else { 'native fallback' })" -ForegroundColor DarkGray
+    Write-Host "  $($global:CRRBoxed) Log dir   : $($global:CRR.LogDir)" -ForegroundColor DarkGray
+    Write-Host ''
+}
+
+function global:crrhelp {
+    Write-Host ''
+    Write-Host '  CarRentalApp CLI - command reference' -ForegroundColor Cyan
+    Write-Host "  $global:CRRLine" -ForegroundColor DarkCyan
+    Write-Host '  NAVIGATION' -ForegroundColor Yellow
+    Write-Host '    crr                go to the project root'
+    Write-Host '    crr-micro          go to the microservices folder'
+    Write-Host '    crr-web            go to the CarRentalApp web API'
+    Write-Host '    crr-svc <name>     go to a service (app|booking|catalog|customer|notification)'
+    Write-Host '    crrhelp            show this help'
+    Write-Host '    status             environment summary'
+    Write-Host ''
+    Write-Host '  RUNNING' -ForegroundColor Yellow
+    Write-Host '    up <svc>           run a service in the foreground'
+    Write-Host '    up <svc> -Detach   run a service in the background'
+    Write-Host '    up-all             run all microservices in the background'
+    Write-Host '    down               stop all background services'
+    Write-Host '    logs [svc]         show service logs (-Follow to tail)'
+    Write-Host '    urls               list every service URL'
+    Write-Host '    open-swagger <svc> open Swagger UI in the browser'
+    Write-Host ''
+    Write-Host '  INFRASTRUCTURE' -ForegroundColor Yellow
+    Write-Host '    infra-up           start SQL Server + RabbitMQ'
+    Write-Host '    infra-down         stop the compose stack'
+    Write-Host '    infra-logs [svc]   tail compose logs'
+    Write-Host '    infra-reset        stop and wipe volumes (fresh DB)'
+    Write-Host '    rabbit-ui          open the RabbitMQ management UI'
+    Write-Host ''
+    Write-Host '  DATABASE' -ForegroundColor Yellow
+    Write-Host '    db-list            list CarRental databases'
+    Write-Host '    db-query <sql>     run a SQL query'
+    Write-Host '    db-migrate         apply EF Core migrations'
+    Write-Host ''
+    Write-Host '  BUILD / TEST' -ForegroundColor Yellow
+    Write-Host '    build-all          build every project'
+    Write-Host '    test-all           run all tests'
+    Write-Host '    clean-all          clean bin/obj everywhere'
+    Write-Host ''
+    Write-Host '  GIT' -ForegroundColor Yellow
+    Write-Host '    gs                git status -sb'
+    Write-Host '    gb                git branch -v'
+    Write-Host '    glog              git log --oneline --graph --decorate'
+    Write-Host '    gd / gadd         git diff / git add'
+    Write-Host '    gcommit <msg>     git commit -m'
+    Write-Host '    gpull / gpush     git pull --rebase / git push'
+    Write-Host '    gco <branch>      git checkout'
+    Write-Host '    gnew <branch>     create and switch to a new branch'
+    Write-Host '    groot             jump to the repository root'
+    Write-Host '    gst               git stash'
+    Write-Host ''
+    Write-Host '  GENERAL' -ForegroundColor Yellow
+    Write-Host '    mkcd <path>        create a directory and enter it'
+    Write-Host '    ff <name>          find files by name'
+    Write-Host '    grep <pattern>     search file contents'
+    Write-Host '    ports [port]       show listening ports'
+    Write-Host '    killport <port>    kill the process on a port'
+    Write-Host '    json <file>        pretty-print JSON'
+    Write-Host '    reload-profile     re-apply this profile'
+    Write-Host ''
+}
+
+# ==============================================================================
+#  SECTION 10 :: Startup banner
+# ==============================================================================
+
+if ($ExecutionContext.SessionState.Path.CurrentLocation.Path -eq $global:CRR.Root) {
+    Write-Host ''
+    Write-Host '  CarRentalApp CLI ready.' -ForegroundColor Cyan
+    Write-Host "  Type 'crrhelp' for the command reference." -ForegroundColor DarkGray
+    Write-Host ''
+}
