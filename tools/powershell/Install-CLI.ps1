@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs the PowerCLI professional PowerShell CLI on a fresh Windows machine.
 
