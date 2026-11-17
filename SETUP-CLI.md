@@ -1,28 +1,29 @@
-# CarRentalApp CLI — Setup & Reproduction Guide
+# PowerCLI — Setup & Reproduction Guide
 
-Everything that was done to build the professional PowerShell CLI for this repo.
+Everything that was done to build the professional PowerShell CLI.
 Use this file to recreate the exact same setup on a new machine.
 
 > **The files in `tools/powershell/` are the source of truth.** The installer
 > reads them; everything else is generated.
 >
 > For an overview of the system and the reasoning behind each decision, see
-> **[CLI.md](CLI.md)**. For the command reference, see **[README-CLI.md](README-CLI.md)**.
+> **[README.md](README.md)**. For the command reference, see
+> **[README-CLI.md](README-CLI.md)**.
 
 ---
 
 ## 1. TL;DR — one command on a new machine
 
 ```powershell
-git clone https://github.com/EngMohamedNowar/C4_CarRentalApp.git
-cd C4_CarRentalApp
+git clone https://github.com/EngMohamedNowar/PowerCLI.git
+cd PowerCLI
 .\tools\powershell\Install-CLI.ps1
 ```
 
 Or without cloning:
 
 ```powershell
-iex (irm https://raw.githubusercontent.com/EngMohamedNowar/C4_CarRentalApp/master/tools/powershell/Install-CLI.ps1)
+iex (irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1)
 ```
 
 Then **close and reopen Windows Terminal** (required for the font to apply).
@@ -47,11 +48,11 @@ already in place is detected and skipped.
 | **Git** | 2.56.0 | `winget install Git.Git` | yes — was missing entirely |
 | **PowerShell 7** | 7.7.0 | `winget install Microsoft.PowerShell` | recommended (5.1 also works) |
 | **CaskaydiaCove NF** | 3.5.1 | nerdfonts.com → GitHub releases | yes — for the prompt icons |
-| Oh-My-Posh | 32.1.0 | already installed | used for the prompt |
+| Oh-My-Posh | 32.1.0 | pre-installed | used for the prompt |
 | PSReadLine | 2.0.0 / 2.4.5 | ships with Windows / PS 7 | used for history + autocomplete |
-| .NET SDK | 10.0.401 | already installed | — |
-| Docker Desktop | 29.8.0 | already installed | needed for SQL Server + RabbitMQ |
-| SQL Server Client | 170 | already installed | used by `db-query` |
+| .NET SDK | 10.0.401 | pre-installed | — |
+| Docker Desktop | 29.8.0 | pre-installed | needed for the docker helpers |
+| SQL Server Client | 170 | pre-installed | used by `db-query` |
 
 ### Manual commands (if you prefer doing it by hand)
 
@@ -97,9 +98,10 @@ foreach ($f in $map.Keys) {
 
 | Path | Purpose |
 |---|---|
-| `tools/powershell/CarRentalProfile.ps1` | **the entire CLI** — 723 lines |
+| `tools/powershell/PowerCLI.ps1` | **the entire CLI** — 632 lines |
 | `tools/powershell/Install-CLI.ps1` | idempotent installer for a fresh machine |
-| `tools/powershell/themes/carrental.omp.json` | **the prompt theme** — custom Nord palette |
+| `tools/powershell/themes/powercli.omp.json` | **the prompt theme** — custom Nord palette |
+| `README.md` | entry point |
 | `README-CLI.md` | command reference |
 | `SETUP-CLI.md` | this file |
 
@@ -107,18 +109,18 @@ foreach ($f in $map.Keys) {
 
 | Path | Purpose |
 |---|---|
-| `%USERPROFILE%\Documents\PowerShell\CarRentalProfile.ps1` | copy of the profile (the real one) |
+| `%USERPROFILE%\Documents\PowerShell\PowerCLI.ps1` | copy of the profile (the real one) |
 | `%USERPROFILE%\Documents\PowerShell\Microsoft.PowerShell_profile.ps1` | bootstrap for PowerShell 7 |
 | `%USERPROFILE%\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` | bootstrap for PowerShell 5.1 |
+| `%USERPROFILE%\Documents\PowerShell\themes\powercli.omp.json` | the prompt theme |
 | `%LOCALAPPDATA%\Microsoft\Windows\Fonts\CaskaydiaCoveNerdFont-*.ttf` | the Nerd Font |
 | `%LOCALAPPDATA%\Microsoft\Windows\Fonts\CaskaydiaCoveNerdFontMono-*.ttf` | the mono variant |
-| `%USERPROFILE%\Documents\PowerShell\themes\carrental.omp.json` | the prompt theme |
 
 Both bootstrap files contain only this (they just load the shared profile):
 
 ```powershell
-$shared = 'C:\Users\<you>\Documents\PowerShell\CarRentalProfile.ps1'
-if (Test-Path $shared) { . $shared } else { Write-Warning "CarRental profile not found at: $shared" }
+$shared = 'C:\Users\<you>\Documents\PowerShell\PowerCLI.ps1'
+if (Test-Path $shared) { . $shared } else { Write-Warning "PowerCLI profile not found at: $shared" }
 ```
 
 ---
@@ -132,8 +134,6 @@ Path:
 %LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json
 ```
 
-Two changes:
-
 ```json
 {
   "defaultProfile": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
@@ -144,90 +144,31 @@ Two changes:
       "foreground": "#D8DEE9",
       "cursorColor": "#88C0D0",
       "selectionBackground": "#3B4252"
-    }
+    },
+    "list": [
+      {
+        "commandline": "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\pwsh.exe -NoLogo",
+        "guid": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
+        "name": "PowerShell",
+        "source": "Windows.Terminal.PowershellCore"
+      }
+    ]
   }
 }
 ```
 
-- `{574e775e-…}` is the **PowerShell 7** profile GUID (Windows Terminal's
-  "PowerShell" entry). Before the change the default was Windows PowerShell 5.1.
+- `{574e775e-…}` is the **PowerShell 7** profile GUID. Before the change the
+  default was Windows PowerShell 5.1.
 - `fontFace` points at the Nerd Font so the prompt icons render instead of
   empty boxes.
 - The colours replace the stock `#0C0C0C` background and `#FFFFFF` foreground.
   Pure black on pure white is the harshest combination for long sessions;
   the soft charcoal + off-white pair reduces halation noticeably.
+- `-NoLogo` suppresses the `PowerShell 7.7.0` startup banner.
 
 > The file **must stay UTF-8 without a BOM** — Windows Terminal refuses to
 > parse a BOM'd JSON file. The installer writes it with
 > `UTF8Encoding($false)` for exactly this reason.
-
-### The colour palette (Nord)
-
-Everything uses the [Nord](https://www.nordtheme.com/) palette — muted,
-low-saturation, and deliberately low-contrast so nothing shouts.
-
-| Role | Hex | Used for |
-|---|---|---|
-| terminal background | `#1C1C1C` | soft charcoal instead of pure black |
-| terminal foreground | `#D8DEE9` | off-white instead of pure white |
-| cursor | `#88C0D0` | ice blue |
-| selection | `#3B4252` | muted slate |
-| user segment | bg `#3B4252` / fg `#D8DEE9` | who you are |
-| path segment | bg `#434C5E` / fg `#88C0D0` | where you are |
-| branch name | `#B48EAD` | muted mauve |
-| ahead / behind | `#A3BE8C` / `#BF616A` | soft green / red |
-| dirty indicators | `#EBCB8B` | soft amber |
-| stash count | `#88C0D0` | ice blue |
-| exit-code check | `#A3BE8C` / `#BF616A` | green ✔ / red ✘ |
-| clock | `#7C8CA5` | dim grey, recedes |
-
-The theme lives in `tools/powershell/themes/carrental.omp.json` and is copied
-to `%USERPROFILE%\Documents\PowerShell\themes\` by the installer. Edit it and
-run `reload-profile` to see changes immediately.
-
-> The theme uses **Oh-My-Posh theme format v4** — segment options live under
-> `options`, not `properties`. Using the v2 `properties` key silently breaks
-> `max_depth`, `style: folder` and the git templates.
->
-> The git segment template uses inline colour tags (`<#B48EAD>…</>`) so the
-> branch name and the status indicators can carry different colours.
-
-### The right-aligned clock
-
-Oh-My-Posh can render a right-aligned block (`"alignment": "right"`), but for
-PowerShell it emits it as part of the *same* prompt string - which leaves the
-text cursor sitting **after** the clock, so everything you type would appear
-over there.
-
-The profile therefore renders the clock itself and uses ANSI cursor
-positioning to place it:
-
-```
-<omp prompt>  ESC[<col>G  <clock>  ESC[<promptWidth>G
-```
-
-PSReadLine honours those escape sequences, so the clock lands on the right
-edge while the cursor stays where you are typing.
-
-Three implementation details that are easy to get wrong:
-
-- **Oh-My-Posh installs its `prompt` function in the *global* scope**, not in
-  the module scope. Calling `& (Get-Module oh-my-posh-core) { prompt }` from a
-  replacement prompt therefore resolves to your own function and recurses
-  until the call depth overflows. The profile captures the original
-  **script block** (`(Get-Command prompt).ScriptBlock`) *before* replacing it -
-  a script block keeps its original session state, so `$script:*` variables
-  inside it still resolve correctly.
-- The visible width has to be measured with ANSI escapes stripped, otherwise
-  the cursor ends up in the wrong column.
-- **On a terminal resize PSReadLine re-draws the *cached* prompt string**, so
-  the clock's absolute column goes stale and wraps onto the next line. The
-  profile runs a 500 ms timer that detects the width change and calls
-  `Invoke-PoshPromptRepaint` (which re-runs the prompt function with the new
-  width), then writes `ESC[1B ESC[2K ESC[1A` to clear any stale clock that the
-  terminal's reflow may have left on the next line.
-
-Set `$env:CRR_NO_CLOCK = '1'` to switch the clock off.
 
 ### Registry — `HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts`
 
@@ -255,21 +196,21 @@ Windows Terminal uninstall.
 
 ## 5. What the profile does
 
-`tools/powershell/CarRentalProfile.ps1` — 10 sections:
+`tools/powershell/PowerCLI.ps1` — 11 sections:
 
 | # | Section | Contents |
 |---|---|---|
-| 0 | Configuration | project paths, service map (app / booking / catalog / customer / notification), log + run folders |
-| 1 | PSReadLine | history (20 000 entries), Tab completion, word-jump, history search, key bindings |
-| 2 | Prompt | Oh-My-Posh via `oh-my-posh init pwsh` using the custom Nord theme, with a matching native fallback |
+| 0 | Configuration | log + run folders, theme path |
+| 1 | PSReadLine | history (20 000 entries), Tab completion, word-jump, history search, 15 key bindings |
+| 2 | Prompt | Oh-My-Posh via `oh-my-posh init pwsh` using the custom Nord theme, with a colourised native fallback, **right-aligned clock** |
 | 3 | Environment | UTF-8 console, .NET env vars, PATH additions |
-| 4 | Aliases | `ll`, `la`, `which`, `..`, `...` |
+| 4 | Core aliases | `ll`, `la`, `which`, `..`, `...` |
 | 5 | General helpers | `mkcd`, `touch`, `ff`, `grep`, `json`, `ports`, `killport`, `ipinfo`, `now`, `utc`, `history-search`, `reload-profile` |
 | 6 | Git | `gs`, `gb`, `glog`, `gd`, `gadd`, `gcommit`, `gac`, `gpull`, `gpush`, `gco`, `gnew`, `groot`, `gst` |
 | 7 | .NET | `build`, `run`, `watch`, `test`, `restore`, `publish`, `clean`, `packlist`, `outdated`, aliases `b` `br` `t` `rw` |
 | 8 | Docker | `dps`, `dpa`, `dc`, `docker-clean`, `docker-stop-all`, alias `dp` |
-| 9 | CarRentalApp | `crr`, `crr-micro`, `crr-web`, `crr-svc`, `up`, `up-all`, `down`, `logs`, `urls`, `open-swagger`, `infra-*`, `db-*`, `build-all`, `test-all`, `clean-all`, `status`, `crrhelp` |
-| 10 | Banner | greeting when you start in the project root |
+| 9 | General helpers & command reference | `status`, `psclihelp` |
+| 10 | Startup banner | greeting when you start at `$HOME` |
 
 ### Design decisions worth knowing
 
@@ -284,28 +225,75 @@ Windows Terminal uninstall.
 - **Errors use `-ErrorAction Ignore`, not `SilentlyContinue`.** `SilentlyContinue`
   still writes to `$Error`; `Ignore` does not. A polluted `$Error` shows up as
   noise on every prompt.
-- **Native git calls go through `cmd /c "... 2>nul"`.** In Windows PowerShell
-  5.1 a native command's stderr is recorded in `$Error` even with `2>$null`,
-  which would spam the error list on every keystroke.
 - **`-ErrorAction Stop` is used inside `try`/`catch`** so failures are
   actually catchable.
+- **Native git calls go through `cmd /c "... 2>nul"`.** In Windows PowerShell
+  5.1 a native command's stderr is recorded in `$Error` **even with `2>$null`**,
+  which would spam the error list on every keystroke.
+- **Oh-My-Posh theme format v4** — segment options live under `options`, not
+  `properties`. Using the v2 `properties` key silently breaks `max_depth`,
+  `style: folder` and the git templates.
+- **The username comes from a `session` segment** — there is no `user` segment
+  type that renders a name.
+- **One `git` segment, not `git_branch` + `git_status`** — that is how the
+  template composes branch + working + staging + stash state.
+- **The right-aligned clock is rendered by the profile, not the theme.**
+  Oh-My-Posh renders a right-aligned block inside the *same* prompt string,
+  which leaves the text cursor sitting *after* the clock. The profile renders
+  the clock itself and positions it with ANSI cursor escapes, which PSReadLine
+  honours.
 - **The profile never throws.** Every section is wrapped so a failure can never
   break the shell.
 
 ---
 
-## 6. Verification
+## 6. The right-aligned clock
+
+Oh-My-Posh *can* render a right-aligned block (`"alignment": "right"`), but for
+PowerShell it emits it inside the **same prompt string** — which leaves the text
+cursor sitting *after* the clock, so everything you typed would appear over
+there.
+
+The profile therefore renders the clock itself and positions it with ANSI:
+
+```
+<omp prompt>  ESC[<col>G  <clock>  ESC[<promptWidth>G
+```
+
+PSReadLine honours those escape sequences, so the clock lands on the right edge
+while the cursor stays where you are typing.
+
+**Three implementation details that are easy to get wrong:**
+
+1. **Oh-My-Posh installs its `prompt` function in the *global* scope**, not in
+   the module scope. Writing `& (Get-Module oh-my-posh-core) { prompt }` inside
+   a replacement prompt resolves to *your own* function and recurses until
+   `call depth overflow`. The profile captures the original **script block**
+   (`(Get-Command prompt).ScriptBlock`) *before* replacing it - a script block
+   keeps its session state, so `$script:*` variables inside it still resolve.
+2. The visible width has to be measured with ANSI escapes stripped, otherwise
+   the cursor lands in the wrong column.
+3. **On a terminal resize PSReadLine re-draws the *cached* prompt string**, so
+   the clock's absolute column goes stale and wraps onto the next line. The
+   profile runs a 500 ms timer that detects the width change and calls
+   `Invoke-PoshPromptRepaint` (which re-runs the prompt function with the new
+   width), then writes `ESC[1B ESC[2K ESC[1A` to clear any stale clock that the
+   terminal's reflow may have left on the next line.
+
+---
+
+## 7. Verification
 
 ```powershell
-status      # environment summary - should report 0 problems
-crrhelp     # the full command reference
+status                          # environment summary - should report 0 problems
+psclihelp                       # the full command reference
 ```
 
 Manual checks:
 
 ```powershell
-$global:Error.Count        # must be 0
-$global:CRRUseOmp          # must be True
+$global:Error.Count             # must be 0
+$global:PowerCLIUseOmp           # must be True
 (Get-Module PSReadLine).Version
 [Console]::OutputEncoding.WebName   # utf-8
 ```
@@ -322,20 +310,18 @@ Confirm the Terminal settings:
 ```powershell
 $j = Get-Content "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json" -Raw | ConvertFrom-Json
 $j.profiles.defaults.fontFace     # CaskaydiaCove NF
-$j.defaultProfile                 # {574e775e-4f2a-5b96-ac1e-a2962a402336}
+$j.defaultProfile                 # {574e775e-...}  (PowerShell 7)
 ```
 
 ---
 
-## 7. Customising
+## 8. Customising
 
 | Want to change | Edit |
 |---|---|
-| the prompt theme | `tools/powershell/themes/carrental.omp.json`, then `reload-profile` |
-| the colours | the same theme file — see the Nord palette table above |
+| the prompt theme | `tools/powershell/themes/powercli.omp.json`, then `reload-profile` |
+| the colours | the same theme file — see the Nord palette table in `README.md` |
 | the terminal colours | Windows Terminal `settings.json` → `profiles.defaults` |
-| the project paths | the `$global:CRR` hashtable at the top of the profile |
-| the service ports | the `$global:CRRServices` hashtable |
 | add a command | add a `function global:mycmd { ... }` to section 9 |
 
 Apply without restarting:
@@ -344,12 +330,12 @@ Apply without restarting:
 reload-profile
 ```
 
-> Editing `CarRentalProfile.ps1` in the repo is the durable way — the installer
+> Editing `PowerCLI.ps1` in the repo is the durable way — the installer
 > copies it to the machine on every run, so changes survive a reinstall.
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
@@ -357,25 +343,18 @@ reload-profile
 | `. $PROFILE` → "not recognized" | the profile file did not exist | run `Install-CLI.ps1` |
 | `Set-Alias: The AllScope option cannot be removed` | an alias redefined with `-Scope Global` | use `-Option AllScope` instead |
 | `Cannot validate argument on parameter 'Function'` | a key binding not supported by the installed PSReadLine | bind keys individually so one failure doesn't block the rest |
-| Console shows `?` instead of symbols | console codepage is 437 | the profile sets UTF-8; if a host overrides it, set `[Console]::OutputEncoding` |
-| `failed to connect to the docker API` | Docker Desktop is not running | start Docker Desktop, then `infra-up` |
-| `not a git repository` | you are outside the repo | `crr` or `groot` |
+| Console shows `?` instead of symbols | console codepage is 437 | the profile forces UTF-8; if a host overrides it, set `[Console]::OutputEncoding` |
 | Terminal settings ignored | BOM in `settings.json` | it must be UTF-8 **without** BOM |
-| Prediction / autocomplete suggestions missing | output is redirected (CI, pipes) | expected — only works on a real console |
-
-Force the native prompt instead of Oh-My-Posh:
-
-```powershell
-$env:CRR_NO_OMP = '1'
-```
+| No autocomplete suggestions | output is redirected (CI, pipes) | expected — prediction needs a real console |
+| Clock wraps onto the next line after a resize | the resize watcher did not fire | wait ~1 s, or press Enter — the next prompt re-anchors it |
 
 ---
 
-## 9. Rollback
+## 10. Rollback
 
 ```powershell
 # remove the profile files
-Remove-Item "$env:USERPROFILE\Documents\PowerShell\CarRentalProfile.ps1"
+Remove-Item "$env:USERPROFILE\Documents\PowerShell\PowerCLI.ps1"
 Remove-Item "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
 Remove-Item "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
 
@@ -389,15 +368,3 @@ Remove-Item "$env:LOCALAPPDATA\Microsoft\Windows\Fonts\CaskaydiaCove*" -Force
 
 Windows Terminal settings: restore the `settings.json.backup-*` file sitting
 next to the original.
-
----
-
-## 10. Project-side notes
-
-- The microservices solution builds cleanly (0 errors, 0 warnings).
-- The **`CarRentalApp` web API does not compile** — `CarDto`,
-  `BookingCreateDto`, `BookingCreateViewModel` and `Car` are missing. This is
-  pre-existing work-in-progress, unrelated to the CLI.
-- A stray empty git repo at `D:\CarRentalApp\.git` (0 objects, 0 refs, no
-  remote) was removed. The real repo is `C4_CarRentalApp\.git`
-  (branch `master`, remote `EngMohamedNowar/C4_CarRentalApp`).

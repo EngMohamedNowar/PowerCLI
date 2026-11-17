@@ -5,17 +5,15 @@ A complete, self-contained PowerShell environment for Windows developers:
 - **Prompt**: Oh-My-Posh with a custom **Nord** theme — muted, eye-friendly colours
 - **Right-aligned clock** that stays on the right edge (even after a terminal resize)
 - **Nerd Font** (CaskaydiaCove NF) for crisp icons
-- **41 functions + 21 aliases** for navigation, git, .NET, Docker and microservices
+- **41 functions + 21 aliases** for navigation, git, .NET, Docker and general tasks
 - **Idempotent installer** — one command on a fresh machine
 - **0 errors** on load (PS 5.1 and PS 7)
 
 ```
- user │ 📁 C4_CarRentalApp │ ⎇ master ↑1 ✎ ?1 ~2 │ ✔          🕐 13:20:48
- slate   ice blue          mauve  grn  amb    ice   dim
+ user │ 📁 my-project │ ⎇ master ↑1 ✎ ?1 ~2 │ ✔          🕐 13:20:48
+ slate   ice blue        mauve  grn  amb    ice   dim
                         ↑ left side                    ↑ right edge
 ```
-
-![PowerCLI prompt](assets/prompt.png)
 
 The clock is pinned to the right edge of the terminal while the text cursor
 stays on the left, so typing is never disturbed by it.
@@ -63,40 +61,8 @@ The installer is **idempotent** — running it twice is safe.
 
 ```powershell
 status      # environment summary
-crrhelp     # full command reference
+psclihelp   # full command reference
 ```
-
-### Everyday workflow
-
-```powershell
-crr                 # jump to the project root
-infra-up            # start SQL Server + RabbitMQ (Docker)
-up-all              # launch all microservices in the background
-urls                # show every URL
-open-swagger catalog
-logs catalog        # tail the service log
-down                # stop all background services
-```
-
-### Running one service
-
-```powershell
-up booking          # in the foreground (Ctrl+C to stop)
-up booking -Detach  # in the background
-```
-
-### Services
-
-| Key | Project | URL |
-|---|---|---|
-| `app` | `CarRentalApp` (web API) | http://localhost:5077/swagger |
-| `booking` | `Booking.API` | http://localhost:60481/swagger |
-| `catalog` | `Catalog.API` | http://localhost:60480/swagger |
-| `customer` | `Customer.API` | http://localhost:60478/swagger |
-| `notification` | `Notification.API` | http://localhost:60479/swagger |
-
-Infrastructure: RabbitMQ UI on http://localhost:15672 (`guest` / `guest`),
-SQL Server on `localhost:1433` (`sa` / `Your_password123`).
 
 ---
 
@@ -105,48 +71,10 @@ SQL Server on `localhost:1433` (`sa` / `Your_password123`).
 ### Navigation
 | Command | Description |
 |---|---|
-| `crr` | go to the project root |
-| `crr-micro` | go to `CarRental.Microservices` |
-| `crr-web` | go to the `CarRentalApp` web API |
-| `crr-svc <name>` | go to a service folder |
+| `mkcd <path>` | create a directory and enter it |
 | `..` / `...` | up one / two levels |
-| `crrhelp` | show the command reference |
+| `psclihelp` | show the command reference |
 | `status` | environment summary |
-
-### Infrastructure
-| Command | Description |
-|---|---|
-| `infra-up` | start SQL Server + RabbitMQ |
-| `infra-down` | stop the compose stack |
-| `infra-logs [svc]` | tail compose logs |
-| `infra-reset` | stop and wipe volumes (fresh DB) |
-| `rabbit-ui` | open the RabbitMQ management UI |
-
-### Running
-| Command | Description |
-|---|---|
-| `up <svc>` | run a service in the foreground |
-| `up <svc> -Detach` | run a service in the background |
-| `up-all` | run all microservices in the background |
-| `down` | stop all background services |
-| `logs [svc] [-Follow]` | show service logs |
-| `urls` | list every service URL |
-| `open-swagger <svc>` | open Swagger UI |
-
-### Database
-| Command | Description |
-|---|---|
-| `db-list` | list `CarRental%` databases |
-| `db-query <sql>` | run a SQL query |
-| `db-migrate` | apply EF Core migrations |
-
-### Build / Test
-| Command | Description |
-|---|---|
-| `build-all` | build every project |
-| `test-all` | run all tests |
-| `clean-all` | clean `bin`/`obj` everywhere |
-| `b` / `br` / `t` / `rw` | build / run / test / restore |
 
 ### Git
 | Command | Description |
@@ -163,8 +91,33 @@ SQL Server on `localhost:1433` (`sa` / `Your_password123`).
 | `groot` | jump to the repository root |
 | `gst` | `git stash` |
 
-> Alias names deliberately avoid PowerShell built-ins (`gl` = `Get-Location`,
-> `gc` = `Get-Content`, `gp` = `Get-ItemProperty` are left untouched).
+### Build / Test (.NET)
+| Command | Description |
+|---|---|
+| `build [proj]` | `dotnet build` |
+| `run [proj]` | `dotnet run` |
+| `watch [proj]` | `dotnet watch` |
+| `test [proj]` | `dotnet test` |
+| `restore [proj]` | `dotnet restore` |
+| `publish [proj]` | `dotnet publish` |
+| `clean [proj]` | `dotnet clean` |
+| `b` / `br` / `t` / `rw` | build / run / test / restore |
+
+### Docker
+| Command | Description |
+|---|---|
+| `dps` | `docker ps` |
+| `dpa` | `docker ps -a` |
+| `dc <args>` | `docker compose <args>` |
+| `docker-clean` | prune everything |
+| `docker-stop-all` | stop all containers |
+| `dp` | alias for `dps` |
+
+### Database / SQL
+| Command | Description |
+|---|---|
+| `db-query <sql>` | run a SQL query (localhost,1433) |
+| `db-list` | list databases |
 
 ### General
 | Command | Description |
@@ -190,9 +143,6 @@ SQL Server on `localhost:1433` (`sa` / `Your_password123`).
 | terminal foreground | `#D8DEE9` (off-white, not pure white) |
 | cursor | `#88C0D0` |
 | selection | `#3B4252` |
-
-The `PowerShell 7.7.0` startup banner is suppressed (`-NoLogo` in the
-profile's commandline).
 | user segment | bg `#3B4252` / fg `#D8DEE9` |
 | path segment | bg `#434C5E` / fg `#88C0D0` |
 | branch name | `#B48EAD` |
@@ -212,10 +162,10 @@ PowerCLI/
 ├── README-CLI.md                      ← detailed command reference
 ├── SETUP-CLI.md                       ← step-by-step reproduction guide
 └── tools/powershell/
-    ├── CarRentalProfile.ps1           ← the CLI (792 lines)
+    ├── PowerCLI.ps1                   ← the CLI (632 lines)
     ├── Install-CLI.ps1                ← idempotent installer
     └── themes/
-        └── carrental.omp.json         ← the prompt theme
+        └── powercli.omp.json          ← the prompt theme
 ```
 
 `tools/powershell/` is **self-contained** — copying just that folder to a new
@@ -227,8 +177,8 @@ machine and running `Install-CLI.ps1` is enough.
 
 | Variable | Effect |
 |---|---|
-| `$env:CRR_NO_CLOCK = '1'` | hide the clock |
-| `$env:CRR_NO_OMP = '1'` | use the built-in native prompt instead of Oh-My-Posh |
+| `$env:POWERCLI_NO_CLOCK = '1'` | hide the clock |
+| `$env:POWERCLI_NO_OMP = '1'` | use the built-in native prompt instead of Oh-My-Posh |
 
 Apply changes without restarting:
 
@@ -245,8 +195,6 @@ reload-profile
 | Prompt shows empty boxes `□` | Nerd Font missing — restart Windows Terminal after install |
 | `. $PROFILE` → "not recognized" | run `Install-CLI.ps1` |
 | Console shows `?` instead of symbols | console codepage is 437 — the profile forces UTF-8 |
-| `failed to connect to the docker API` | start Docker Desktop, then `infra-up` |
-| `not a git repository` | you are outside the repo — `crr` or `groot` |
 | Terminal settings ignored | `settings.json` must be UTF-8 **without** BOM |
 | No autocomplete suggestions | output is redirected (CI, pipes) — expected |
 
@@ -254,6 +202,4 @@ reload-profile
 
 ## License
 
-Personal project. Feel free to fork and adapt. See the
-[CarRentalApp repo](https://github.com/EngMohamedNowar/C4_CarRentalApp) for
-the original context.
+Personal project. Feel free to fork and adapt.

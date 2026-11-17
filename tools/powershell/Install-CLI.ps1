@@ -1,7 +1,7 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Installs the CarRentalApp professional PowerShell CLI on a fresh Windows machine.
+    Installs the PowerCLI professional PowerShell CLI on a fresh Windows machine.
 
 .DESCRIPTION
     Idempotent installer. Safe to run more than once - anything already in place
@@ -17,7 +17,7 @@
 
 .EXAMPLE
     # One-liner from the repo root:
-    iex (irm https://raw.githubusercontent.com/EngMohamedNowar/C4_CarRentalApp/master/tools/powershell/Install-CLI.ps1)
+    iex (irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1)
 
 .EXAMPLE
     # Or locally:
@@ -41,10 +41,10 @@ $ProgressPreference    = 'SilentlyContinue'
 # Paths
 # ---------------------------------------------------------------------------
 $RepoRoot   = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$ProfileSrc = Join-Path $PSScriptRoot 'CarRentalProfile.ps1'
+$ProfileSrc = Join-Path $PSScriptRoot 'PowerCLI.ps1'
 
 $SharedDir  = Join-Path $env:USERPROFILE 'Documents\PowerShell'
-$SharedFile = Join-Path $SharedDir 'CarRentalProfile.ps1'
+$SharedFile = Join-Path $SharedDir 'PowerCLI.ps1'
 $ThemeDir   = Join-Path $SharedDir 'themes'
 $PwshBoot   = Join-Path $SharedDir 'Microsoft.PowerShell_profile.ps1'
 $WinPsBoot  = Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'
@@ -76,7 +76,7 @@ function Write-Fail  { param([string]$Text) Write-Host "    [FAIL] $Text" -Foreg
 
 Write-Host ''
 Write-Host '  ================================================' -ForegroundColor Cyan
-Write-Host '   CarRentalApp CLI installer' -ForegroundColor Cyan
+Write-Host '   PowerCLI installer' -ForegroundColor Cyan
 Write-Host '  ================================================' -ForegroundColor Cyan
 Write-Host "   Repo: $RepoRoot"
 
@@ -299,11 +299,11 @@ if (-not (Test-Path $ProfileSrc)) {
     Write-Ok "shared profile  -> $SharedFile"
 
     # --- prompt theme ---
-    $themeSrc = Join-Path $PSScriptRoot 'themes\carrental.omp.json'
+    $themeSrc = Join-Path $PSScriptRoot 'themes\powercli.omp.json'
     if (Test-Path $themeSrc) {
         New-Item -ItemType Directory -Force -Path $ThemeDir | Out-Null
-        Copy-Item $themeSrc (Join-Path $ThemeDir 'carrental.omp.json') -Force
-        Write-Ok "prompt theme   -> $(Join-Path $ThemeDir 'carrental.omp.json')"
+        Copy-Item $themeSrc (Join-Path $ThemeDir 'powercli.omp.json') -Force
+        Write-Ok "prompt theme   -> $(Join-Path $ThemeDir 'powercli.omp.json')"
     } else {
         Write-Warn2 "theme file not found: $themeSrc"
     }
@@ -312,7 +312,7 @@ if (-not (Test-Path $ProfileSrc)) {
 # ==============================================================================
 #  $((Split-Path $WinPsBoot -Leaf)) :: Profile bootstrap
 #  The real implementation lives in:
-#    $(Join-Path $SharedDir 'CarRentalProfile.ps1')
+#    $(Join-Path $SharedDir 'PowerCLI.ps1')
 #  Edit THAT file - this file only loads it.
 # ==============================================================================
 
@@ -322,10 +322,10 @@ if (Test-Path `$shared) {
     try {
         . `$shared
     } catch {
-        Write-Warning "CarRental profile failed to load: `$_"
+        Write-Warning "PowerCLI profile failed to load: `$_"
     }
 } else {
-    Write-Warning "CarRental profile not found at: `$shared"
+    Write-Warning "PowerCLI profile not found at: `$shared"
 }
 "@
     # UTF-8 *with* BOM so Windows PowerShell 5.1 detects the encoding correctly.
