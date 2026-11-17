@@ -68,11 +68,16 @@ $ProgressPreference    = 'SilentlyContinue'
 $RepoRoot   = if ($ScriptRoot -and (Test-Path (Join-Path $ScriptRoot '..\..'))) { (Resolve-Path (Join-Path $ScriptRoot '..\..')).Path } else { $ScriptRoot }
 $ProfileSrc = Join-Path $ScriptRoot 'PowerCLI.ps1'
 
-$SharedDir  = Join-Path $env:USERPROFILE 'Documents\PowerShell'
-$SharedFile = Join-Path $SharedDir 'PowerCLI.ps1'
-$ThemeDir   = Join-Path $SharedDir 'themes'
-$PwshBoot   = Join-Path $SharedDir 'Microsoft.PowerShell_profile.ps1'
-$WinPsBoot  = Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'
+# Determine the correct profile directory.
+# $PROFILE already points to the right location, even when Documents is
+# redirected to OneDrive (e.g. C:\Users\KING1\OneDrive\Documents\...).
+$profileDir   = Split-Path $PROFILE
+$documentsDir = Split-Path $profileDir
+$SharedDir    = Join-Path $documentsDir 'PowerShell'
+$SharedFile   = Join-Path $SharedDir 'PowerCLI.ps1'
+$ThemeDir     = Join-Path $SharedDir 'themes'
+$PwshBoot     = Join-Path $SharedDir 'Microsoft.PowerShell_profile.ps1'
+$WinPsBoot    = Join-Path $documentsDir 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'
 
 $FontDir    = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
 $FontRegKey = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'

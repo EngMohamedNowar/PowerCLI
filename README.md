@@ -47,6 +47,11 @@ Then **close and reopen Windows Terminal** (required for the font).
 5. Writes the profile files (PS 5.1 and PS 7)
 6. Verifies everything
 
+> **OneDrive note:** if your Documents folder is redirected to OneDrive
+> (e.g. `C:\Users\KING1\OneDrive\Documents\...`), the installer detects this
+> automatically via `$PROFILE` and writes to the correct location. No manual
+> copying needed.
+
 ### Installer options
 
 | Flag | Effect |

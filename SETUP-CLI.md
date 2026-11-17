@@ -109,10 +109,16 @@ foreach ($f in $map.Keys) {
 
 | Path | Purpose |
 |---|---|
-| `%USERPROFILE%\Documents\PowerShell\PowerCLI.ps1` | copy of the profile (the real one) |
-| `%USERPROFILE%\Documents\PowerShell\Microsoft.PowerShell_profile.ps1` | bootstrap for PowerShell 7 |
-| `%USERPROFILE%\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` | bootstrap for PowerShell 5.1 |
-| `%USERPROFILE%\Documents\PowerShell\themes\powercli.omp.json` | the prompt theme |
+| `<Documents>\PowerShell\PowerCLI.ps1` | copy of the profile (the real one) |
+| `<Documents>\PowerShell\Microsoft.PowerShell_profile.ps1` | bootstrap for PowerShell 7 |
+| `<Documents>\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` | bootstrap for PowerShell 5.1 |
+| `<Documents>\PowerShell\themes\powercli.omp.json` | the prompt theme |
+
+> **OneDrive note:** if your Documents folder is redirected to OneDrive
+> (e.g. `C:\Users\KING1\OneDrive\Documents\...`), the installer detects this
+> automatically via `$PROFILE` and writes to the correct location. The profile
+> itself also resolves the theme path from `$PROFILE`, so everything works
+> regardless of where Documents lives.
 | `%LOCALAPPDATA%\Microsoft\Windows\Fonts\CaskaydiaCoveNerdFont-*.ttf` | the Nerd Font |
 | `%LOCALAPPDATA%\Microsoft\Windows\Fonts\CaskaydiaCoveNerdFontMono-*.ttf` | the mono variant |
 

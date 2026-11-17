@@ -12,11 +12,15 @@ $ErrorActionPreference = 'Continue'
 #  SECTION 0 :: Environment detection & shared configuration
 # ==============================================================================
 
+# Determine the correct profile directory (handles OneDrive redirection).
+$profileDir = Split-Path $PROFILE
+$documentsDir = Split-Path $profileDir
+
 $global:PowerCLI = [ordered]@{
     LogDir      = (Join-Path $env:TEMP 'PowerCLI\logs')
     RunDir      = (Join-Path $env:TEMP 'PowerCLI\run')
     Theme       = 'jandedobbeleer'
-    ThemePath   = (Join-Path $env:USERPROFILE 'Documents\PowerShell\themes\powercli.omp.json')
+    ThemePath   = (Join-Path $documentsDir 'PowerShell\themes\powercli.omp.json')
     ProfilePath = $PSCommandPath
 }
 
