@@ -17,7 +17,7 @@
 
 .EXAMPLE
     # One-liner from the repo root:
-    iex (irm https://raw.githubusercontent.com/EngMohamedNowar/C4_CarRentalApp/master/tools/powershell/Install-CLI.ps1)
+    iex (irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1)
 
 .EXAMPLE
     # Or locally:
