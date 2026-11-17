@@ -134,6 +134,13 @@ if (-not $SkipTools) {
     } else {
         Install-WingetPackage -Id 'Microsoft.PowerShell' -Label 'PowerShell 7'
     }
+
+    # Oh-My-Posh (prompt engine)
+    if (Test-CommandPresent 'oh-my-posh') {
+        Write-Ok "Oh-My-Posh already present ($(& oh-my-posh --version))"
+    } else {
+        Install-WingetPackage -Id 'JanDeDobbeleer.OhMyPosh' -Label 'Oh-My-Posh'
+    }
 } else {
     Write-Info 'tool installation skipped (-SkipTools)'
 }
@@ -371,5 +378,5 @@ Write-Host ''
 Write-Host '   NEXT STEPS' -ForegroundColor Cyan
 Write-Host '    1. Close and reopen Windows Terminal (needed for the font).'
 Write-Host '    2. Type  status   to check the environment'
-Write-Host '    3. Type  crrhelp  to see every command'
+Write-Host '    3. Type  psclihelp  to see every command'
 Write-Host ''

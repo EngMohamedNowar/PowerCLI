@@ -51,7 +51,6 @@ try {
         Set-PSReadLineOption -BellStyle None -ErrorAction Ignore
         Set-PSReadLineOption -ShowToolTips -ErrorAction Ignore
 
-        # Predictive suggestions need a real (non-redirected) VT console.
         $canPredict = $hasPrediction -and -not [Console]::IsOutputRedirected
         if ($canPredict) {
             try { Set-PSReadLineOption -PredictionSource History -ErrorAction Stop }
@@ -59,8 +58,6 @@ try {
             try { Set-PSReadLineOption -PredictionViewStyle ListView -ErrorAction Stop } catch { }
         }
 
-        # Key bindings. Each is applied independently so that a binding
-        # unsupported by the installed PSReadLine version never blocks the rest.
         $bind = {
             param([string]$Key, [string]$Fn)
             try { Set-PSReadLineKeyHandler -Key $Key -Function $Fn -ErrorAction Stop }
@@ -90,27 +87,6 @@ try {
 #  SECTION 2 :: Prompt  (Oh-My-Posh with a clean native fallback)
 # ==============================================================================
 
-function global:Get-GitOutput {
-    <#
-        Runs git and returns its stdout only.
-        Native stderr is routed through cmd so that a "not a git repository"
-        message never lands in $Error (which would otherwise pollute the
-        prompt on every keystroke).
-    #>
-    param(
-        [Parameter(Mandatory, Position = 0)][string]$GitArgs,
-        [string]$Directory
-    )
-    if (-not (Get-Command git -ErrorAction Ignore)) { return @() }
-    $prefix = ''
-    if ($Directory) { $prefix = '-C "' + $Directory + '" ' }
-    if ($env:OS -eq 'Windows_NT') {
-        return @(& cmd /c "git $prefix$GitArgs 2>nul")
-    }
-    return @(& git $prefix.Trim().Split(' ') $GitArgs.Split(' ') 2>&1 |
-             Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] })
-}
-
 function Get-PowerCLIGitInfo {
     if (-not (Get-Command git -ErrorAction Ignore)) { return $null }
     try {
@@ -132,12 +108,24 @@ function Get-PowerCLIGitInfo {
     } catch { return $null }
 }
 
+function global:Get-GitOutput {
+    param(
+        [Parameter(Mandatory, Position = 0)][string]$GitArgs,
+        [string]$Directory
+    )
+    if (-not (Get-Command git -ErrorAction Ignore)) { return @() }
+    $prefix = ''
+    if ($Directory) { $prefix = '-C "' + $Directory + '" ' }
+    if ($env:OS -eq 'Windows_NT') {
+        return @(& cmd /c "git $prefix$GitArgs 2>nul")
+    }
+    return @(& git $prefix.Trim().Split(' ') $GitArgs.Split(' ') 2>&1 |
+             Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] })
+}
+
 $global:PowerCLIUseOmp = $false
 try {
-    # Set $env:POWERCLI_NO_OMP = '1' to force the native fallback prompt.
     if ($env:POWERCLI_NO_OMP -ne '1' -and (Get-Command oh-my-posh -ErrorAction Ignore)) {
-        # Modern approach: `oh-my-posh init` emits a ready-to-run init script.
-        # No PowerShell module registration required.
         $themeConfig = if (Test-Path $global:PowerCLI.ThemePath) { $global:PowerCLI.ThemePath }
                         else { $global:PowerCLI.Theme }
         $initScript = (& oh-my-posh init pwsh --config $themeConfig 2>$null | Out-String)
@@ -150,6 +138,62 @@ try {
     Write-Verbose "Oh-My-Posh setup skipped: $_"
 }
 
+# Capture Oh-My-Posh's prompt script block before replacing it.
+$global:PowerCLIOmpPromptBlock = $null
+if ($global:PowerCLIUseOmp) {
+    $ompPromptCmd = Get-Command prompt -ErrorAction Ignore
+    if ($ompPromptCmd -and $ompPromptCmd.CommandType -eq 'Function') {
+        $global:PowerCLIOmpPromptBlock = $ompPromptCmd.ScriptBlock
+    }
+}
+
+$global:PowerCLIClock = ($env:POWERCLI_NO_CLOCK -ne '1')
+$global:PowerCLIWidthChanged = $false
+$global:PowerCLILastPromptWidth = $null
+
+function global:Get-PowerCLIVisibleWidth {
+    param([string]$Text)
+    if (-not $Text) { return 0 }
+    $plain = [regex]::Replace($Text, '\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)', '')  # OSC
+    $plain = [regex]::Replace($plain, '\x1b\[[0-9;:?]*[ -\/]*[@-~]', '')      # CSI
+    return $plain.Length
+}
+
+function global:Get-PowerCLITerminalWidth {
+    try {
+        $w = $Host.UI.RawUI.WindowSize.Width
+        if ($w -gt 20) { return $w }
+    } catch { }
+    return 120
+}
+
+if ($global:PowerCLIUseOmp -and $global:PowerCLIOmpPromptBlock -and $global:PowerCLIClock) {
+    function global:prompt {
+        $left = (& $global:PowerCLIOmpPromptBlock) -join "`n"
+        if (-not $left) { return $left }
+
+        $e     = [char]27
+        $clock = "$($e)[38;2;124;140;165m $([char]0xF017) $(Get-Date -Format 'HH:mm:ss')$($e)[0m"
+        $cw    = Get-PowerCLIVisibleWidth $clock
+        $lw    = Get-PowerCLIVisibleWidth $left
+        $tw    = Get-PowerCLITerminalWidth
+
+        if (($tw - $lw - $cw) -lt 2) {
+            $global:PowerCLILastPromptWidth = $tw
+            return $left
+        }
+
+        $clear = ''
+        if ($global:PowerCLIWidthChanged) {
+            $clear = "$($e)[1B$($e)[2K$($e)[1A"
+            $global:PowerCLIWidthChanged = $false
+        }
+        $global:PowerCLILastPromptWidth = $tw
+
+        "$clear$left$($e)[$($tw - $cw + 1)`G$clock$($e)[$($lw + 1)`G"
+    }
+}
+
 if (-not $global:PowerCLIUseOmp) {
     # Native fallback prompt - two-line, colourised, git aware.
     # Uses the same Nord palette as the Oh-My-Posh theme.
@@ -157,7 +201,7 @@ if (-not $global:PowerCLIUseOmp) {
         $e = [char]27
         $cReset = "$($e)[0m"; $cRed    = "$($e)[91m"; $cGreen  = "$($e)[92m"
         $cYellow = "$($e)[93m"; $cCyan   = "$($e)[96m"; $cGray   = "$($e)[90m"
-        $cBlue   = "$($e)[94m"; $cMauve  = "$($e)[95m"; $cIce    = "$($e)[96m"
+        $cMauve  = "$($e)[95m"; $cIce    = "$($e)[96m"
 
         $cwd  = $ExecutionContext.SessionState.Path.CurrentLocation.Path
         $disp = $cwd
@@ -183,85 +227,7 @@ if (-not $global:PowerCLIUseOmp) {
 }
 
 # ---------------------------------------------------------------------------
-#  Right-aligned clock
-#  ---------------------------------------------------------------------------
-#  Oh-My-Posh renders a right-aligned block as part of the SAME prompt string,
-#  which leaves the text cursor sitting *after* the clock - so everything you
-#  type would appear over there. Instead we render the clock ourselves and use
-#  ANSI cursor positioning to put it on the right while leaving the cursor
-#  where the user is typing. PSReadLine honours the escape sequences.
-# ---------------------------------------------------------------------------
-
-function global:Get-PowerCLIVisibleWidth {
-    param([string]$Text)
-    if (-not $Text) { return 0 }
-    $plain = [regex]::Replace($Text, '\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)', '')  # OSC
-    $plain = [regex]::Replace($plain, '\x1b\[[0-9;:?]*[ -\/]*[@-~]', '')      # CSI
-    return $plain.Length
-}
-
-function global:Get-PowerCLITerminalWidth {
-    try {
-        $w = $Host.UI.RawUI.WindowSize.Width
-        if ($w -gt 20) { return $w }
-    } catch { }
-    return 120
-}
-
-# Set $env:POWERCLI_NO_CLOCK = '1' to hide the clock.
-$global:PowerCLIClock = ($env:POWERCLI_NO_CLOCK -ne '1')
-$global:PowerCLIWidthChanged = $false
-$global:PowerCLILastPromptWidth = $null
-
-if ($global:PowerCLIUseOmp -and $global:PowerCLIClock) {
-    # Capture Oh-My-Posh's prompt *before* replacing it.
-    # The script block keeps its original session state (the omp module scope),
-    # so calling it still resolves $script:* variables correctly.
-    $ompPromptCmd = Get-Command prompt -ErrorAction Ignore
-    if ($ompPromptCmd -and $ompPromptCmd.CommandType -eq 'Function') {
-        $global:PowerCLIOmpPromptBlock = $ompPromptCmd.ScriptBlock
-
-        function global:prompt {
-            $left = (& $global:PowerCLIOmpPromptBlock) -join "`n"
-            if (-not $left) { return $left }
-
-            $e     = [char]27
-            $clock = "$($e)[38;2;124;140;165m $([char]0xF017) $(Get-Date -Format 'HH:mm:ss')$($e)[0m"
-            $cw    = Get-PowerCLIVisibleWidth $clock
-            $lw    = Get-PowerCLIVisibleWidth $left
-            $tw    = Get-PowerCLITerminalWidth
-
-            # Not enough room - skip the clock rather than let it collide.
-            if (($tw - $lw - $cw) -lt 2) {
-                $global:PowerCLILastPromptWidth = $tw
-                return $left
-            }
-
-            # If the terminal width changed since the last prompt, a stale clock
-            # from the previous (wider) render may be sitting on the next line.
-            # Clear that line before drawing the new prompt.
-            $clear = ''
-            if ($global:PowerCLIWidthChanged) {
-                $clear = "$($e)[1B$($e)[2K$($e)[1A"
-                $global:PowerCLIWidthChanged = $false
-            }
-            $global:PowerCLILastPromptWidth = $tw
-
-            # Draw the clock at the right edge, then move the cursor back to
-            # just after the prompt so typing behaves normally.
-            "$clear$left$($e)[$($tw - $cw + 1)`G$clock$($e)[$($lw + 1)`G"
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
 #  Keep the clock anchored when the terminal is resized
-#  ---------------------------------------------------------------------------
-#  PSReadLine caches the prompt string and simply re-draws it on a resize, so
-#  the absolute column the clock was placed at goes stale - the clock ends up
-#  wrapped onto the next line or floating in the middle of the screen.
-#  A small timer watches the console width and re-invokes the prompt whenever
-#  it changes, which re-anchors the clock to the new right edge.
 # ---------------------------------------------------------------------------
 
 function global:Sync-PowerCLIPromptWidth {
@@ -269,52 +235,48 @@ function global:Sync-PowerCLIPromptWidth {
         $w = Get-PowerCLITerminalWidth
         if (-not $w -or $w -eq $global:PowerCLILastWidth) { return }
 
-        # Only re-paint while PSReadLine is actually waiting for input.
         $line = $null
         $state = 0
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$state) | Out-Null
 
-        # Clear the line below - a stale clock from the previous (wider) render
-        # may have wrapped onto it when the terminal shrank.
         $e = [char]27
         Write-Host -NoNewline "$($e)[1B$($e)[2K$($e)[1A"
 
         $global:PowerCLILastWidth = $w
-        $global:PowerCLIWidthChanged = $true      # force the next prompt to clear a stale clock
+        $global:PowerCLIWidthChanged = $true
         if (Get-Command Invoke-PoshPromptRepaint -ErrorAction Ignore) {
             Invoke-PoshPromptRepaint
         } else {
             [Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()
         }
-        # Clear any stale clock that may have wrapped onto the next line.
-        # PSReadLine's repaint only clears the prompt line itself.
-        $e = [char]27
-        Write-Host -NoNewline "$($e)[1B$($e)[2K$($e)[1A"
     } catch {
         # Never let the watcher break the session.
     }
 }
 
 $global:PowerCLILastWidth = Get-PowerCLITerminalWidth
-try {
-    $timer = New-Object System.Timers.Timer
-    $timer.Interval = 500
-    $null = Register-ObjectEvent -InputObject $timer -EventName 'Elapsed' -Action {
-        Sync-PowerCLIPromptWidth
+if (-not ($global:PowerCLITimer -and $global:PowerCLITimer.Enabled)) {
+    try {
+        $timer = New-Object System.Timers.Timer
+        $timer.Interval = 500
+        $null = Register-ObjectEvent -InputObject $timer -EventName 'Elapsed' -Action {
+            Sync-PowerCLIPromptWidth
+        }
+        $timer.Start()
+        $global:PowerCLITimer = $timer
+    } catch {
+        Write-Verbose "Clock resize watcher not started: $_"
     }
-    $timer.Start()
-    $global:PowerCLITimer = $timer
-} catch {
-    Write-Verbose "Clock resize watcher not started: $_"
 }
 
 # ==============================================================================
 #  SECTION 3 :: Environment variables & console encoding
 # ==============================================================================
 
-# UTF-8 console so box-drawing / emoji glyphs render correctly instead of '?'.
 try {
-    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    if (-not [Console]::IsOutputRedirected) {
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    }
     $OutputEncoding = [System.Text.Encoding]::UTF8
 } catch {
     Write-Verbose "Console encoding could not be set to UTF-8: $_"
@@ -341,8 +303,6 @@ Set-Alias -Name ll    -Value Get-ChildItem -Option AllScope -Force
 Set-Alias -Name la    -Value Get-ChildItem -Option AllScope -Force
 Set-Alias -Name which -Value Get-Command    -Option AllScope -Force
 
-# NOTE: aliases take precedence over functions in PowerShell, so '..' and '...'
-# are defined as functions only (an alias cannot accept a positional argument).
 function global:..  { Set-Location -Path '..' }
 function global:... { Set-Location -Path '..\..' }
 
@@ -379,7 +339,7 @@ function global:grep {
         [string]$Include,
         [switch]$CaseSensitive
     )
-    $fileParams = @{ Path = $Path; Recurse = $true; File = $true; ErrorAction = 'SilentlyContinue' }
+    $fileParams = @{ Path = $Path; Recurse = $true; File = $true; ErrorAction = 'Ignore' }
     if ($Include) { $fileParams['Include'] = $Include }
     Get-ChildItem @fileParams | Select-String -Pattern $Pattern -CaseSensitive:$CaseSensitive -ErrorAction Ignore
 }
@@ -462,14 +422,6 @@ if (Get-Command git -ErrorAction Ignore) {
     function global:git-stash    { param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest) git stash -- @Rest }
     function global:git-root     {
         $r = (Get-GitOutput 'rev-parse --show-toplevel' | Select-Object -First 1)
-        # If we landed in an empty "wrapper" repository (no commits), look for a
-        # real repository nested underneath and use that instead.
-        if ($r -and -not (Get-GitOutput 'rev-list -n 1 HEAD' -Directory $r)) {
-            $nested = @(Get-ChildItem -Path $r -Directory -Force -ErrorAction Ignore |
-                        Where-Object { Test-Path (Join-Path $_.FullName '.git') } |
-                        Where-Object { Get-GitOutput 'rev-list -n 1 HEAD' -Directory $_.FullName })
-            if ($nested.Count -gt 0) { $r = $nested[0].FullName }
-        }
         if ($r) { Set-Location $r } else { Write-Host 'Not a git repository' -ForegroundColor Red }
     }
     function global:git-undo     { git reset --soft HEAD~1 }
@@ -526,7 +478,7 @@ if (Get-Command dotnet -ErrorAction Ignore) {
 if (Get-Command docker -ErrorAction Ignore) {
     function global:dps { docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" }
     function global:dpa { docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" }
-    function global:dcl { param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest) docker compose @Rest }
+    function global:dc  { param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest) docker compose @Rest }
     function global:docker-clean {
         docker system prune -af --volumes
     }
@@ -540,6 +492,23 @@ if (Get-Command docker -ErrorAction Ignore) {
 # ==============================================================================
 #  SECTION 9 :: General helpers & command reference
 # ==============================================================================
+
+# --- Database helpers (only if sqlcmd is installed) --------------------------
+if (Get-Command sqlcmd -ErrorAction Ignore) {
+    function global:db-list {
+        param([string]$Server = 'localhost,1433', [string]$User = 'sa', [string]$Password = 'Your_password123')
+        sqlcmd -S $Server -U $User -P $Password -C -Q "SELECT name FROM sys.databases;" -W -s"|"
+    }
+    function global:db-query {
+        param(
+            [Parameter(Mandatory, Position = 0)][string]$Query,
+            [string]$Server = 'localhost,1433',
+            [string]$User = 'sa',
+            [string]$Password = 'Your_password123'
+        )
+        sqlcmd -S $Server -U $User -P $Password -C -Q $Query -W -s"|"
+    }
+}
 
 function global:status {
     Write-Host ''
