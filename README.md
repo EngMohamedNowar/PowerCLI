@@ -15,6 +15,8 @@ A complete, self-contained PowerShell environment for Windows developers:
                         ↑ left side                    ↑ right edge
 ```
 
+![PowerCLI prompt](assets/prompt.png)
+
 The clock is pinned to the right edge of the terminal while the text cursor
 stays on the left, so typing is never disturbed by it.
 
