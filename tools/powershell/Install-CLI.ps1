@@ -17,7 +17,7 @@
 
 .EXAMPLE
     # One-liner from the repo root:
-    iex (irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1)
+    iex (irm https://raw.githubusercontent.com/EngMohamedNowar/C4_CarRentalApp/master/tools/powershell/Install-CLI.ps1)
 
 .EXAMPLE
     # Or locally:
@@ -264,6 +264,12 @@ if (-not (Test-Path $WtSettings)) {
                 Write-Ok "default profile switched to PowerShell 7 ($($pwshProfile.guid))"
             } else {
                 Write-Ok 'PowerShell 7 is already the default profile'
+            }
+
+            # Suppress the 'PowerShell 7.7.0' startup banner.
+            if ($pwshProfile.commandline -ne '%LOCALAPPDATA%\\Microsoft\\WindowsApps\\pwsh.exe -NoLogo') {
+                $pwshProfile.commandline = '%LOCALAPPDATA%\\Microsoft\\WindowsApps\\pwsh.exe -NoLogo'
+                Write-Ok 'added -NoLogo to the PowerShell 7 profile'
             }
         } else {
             Write-Info 'no PowerShell 7 profile in Terminal yet - skipping default profile change'

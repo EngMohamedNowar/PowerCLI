@@ -190,6 +190,9 @@ SQL Server on `localhost:1433` (`sa` / `Your_password123`).
 | terminal foreground | `#D8DEE9` (off-white, not pure white) |
 | cursor | `#88C0D0` |
 | selection | `#3B4252` |
+
+The `PowerShell 7.7.0` startup banner is suppressed (`-NoLogo` in the
+profile's commandline).
 | user segment | bg `#3B4252` / fg `#D8DEE9` |
 | path segment | bg `#434C5E` / fg `#88C0D0` |
 | branch name | `#B48EAD` |
