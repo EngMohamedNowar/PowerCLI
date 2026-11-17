@@ -25,7 +25,7 @@ stays on the left, so typing is never disturbed by it.
 ## Install (one command)
 
 ```powershell
-iex (irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1)
+iex ((irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1).TrimStart([char]0xFEFF))
 ```
 
 Or from a clone:

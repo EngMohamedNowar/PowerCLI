@@ -23,7 +23,7 @@ cd PowerCLI
 Or without cloning:
 
 ```powershell
-iex (irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1)
+iex ((irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1).TrimStart([char]0xFEFF))
 ```
 
 Then **close and reopen Windows Terminal** (required for the font to apply).

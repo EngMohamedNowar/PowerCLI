@@ -38,25 +38,25 @@ param(
 # When invoked via iex, $PSScriptRoot is empty, so we download the needed
 # files from GitHub first.
 # ---------------------------------------------------------------------------
-if (-not $PSScriptRoot) {
-    $script:PowerCLIRoot = Join-Path $env:TEMP 'PowerCLI-install'
-    New-Item -ItemType Directory -Force -Path $script:PowerCLIRoot | Out-Null
-    New-Item -ItemType Directory -Force -Path "$script:PowerCLIRoot\themes" | Out-Null
+# Determine the script root and ensure the needed files are present.
+# This works both when run from a file and via iex (irm ...).
+$ScriptRoot = $PSScriptRoot
+if (-not $ScriptRoot -or -not (Test-Path (Join-Path $ScriptRoot 'PowerCLI.ps1'))) {
+    $ScriptRoot = Join-Path $env:TEMP 'PowerCLI-install'
+    New-Item -ItemType Directory -Force -Path $ScriptRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path "$ScriptRoot\themes" | Out-Null
 
     $baseUrl = 'https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell'
     Write-Host 'Downloading PowerCLI files...' -ForegroundColor Cyan
     try {
-        Invoke-WebRequest -Uri "$baseUrl/PowerCLI.ps1" -OutFile "$script:PowerCLIRoot\PowerCLI.ps1" -UseBasicParsing -ErrorAction Stop
-        Invoke-WebRequest -Uri "$baseUrl/themes/powercli.omp.json" -OutFile "$script:PowerCLIRoot\themes\powercli.omp.json" -UseBasicParsing -ErrorAction Stop
+        Invoke-WebRequest -Uri "$baseUrl/PowerCLI.ps1" -OutFile "$ScriptRoot\PowerCLI.ps1" -UseBasicParsing -ErrorAction Stop
+        Invoke-WebRequest -Uri "$baseUrl/themes/powercli.omp.json" -OutFile "$ScriptRoot\themes\powercli.omp.json" -UseBasicParsing -ErrorAction Stop
         Write-Host 'Downloaded.' -ForegroundColor Green
     } catch {
         Write-Host "Download failed: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "Clone the repo instead: git clone https://github.com/EngMohamedNowar/PowerCLI.git" -ForegroundColor Yellow
         return
     }
-    $ScriptRoot = $script:PowerCLIRoot
-} else {
-    $ScriptRoot = $PSScriptRoot
 }
 
 $ErrorActionPreference = 'Continue'
