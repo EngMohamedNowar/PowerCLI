@@ -1,5 +1,4 @@
-﻿#Requires -Version 5.1
-<#
+﻿<#
 .SYNOPSIS
     Installs the PowerCLI professional PowerShell CLI on a fresh Windows machine.
 
@@ -17,14 +16,13 @@
 
 .EXAMPLE
     # One-liner from the repo root:
-    iex (irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1)
+    irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1 | iex
 
 .EXAMPLE
     # Or locally:
     .\tools\powershell\Install-CLI.ps1
 #>
 
-[CmdletBinding()]
 param(
     # Skip winget installs (use when the tools are already present).
     [switch]$SkipTools,
@@ -34,14 +32,41 @@ param(
     [switch]$ForceFont
 )
 
+
+# ---------------------------------------------------------------------------
+# Bootstrap: support both "run from file" and "iex (irm ...)" usage.
+# When invoked via iex, $PSScriptRoot is empty, so we download the needed
+# files from GitHub first.
+# ---------------------------------------------------------------------------
+if (-not $PSScriptRoot) {
+    $script:PowerCLIRoot = Join-Path $env:TEMP 'PowerCLI-install'
+    New-Item -ItemType Directory -Force -Path $script:PowerCLIRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path "$script:PowerCLIRoot\themes" | Out-Null
+
+    $baseUrl = 'https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell'
+    Write-Host 'Downloading PowerCLI files...' -ForegroundColor Cyan
+    try {
+        Invoke-WebRequest -Uri "$baseUrl/PowerCLI.ps1" -OutFile "$script:PowerCLIRoot\PowerCLI.ps1" -UseBasicParsing -ErrorAction Stop
+        Invoke-WebRequest -Uri "$baseUrl/themes/powercli.omp.json" -OutFile "$script:PowerCLIRoot\themes\powercli.omp.json" -UseBasicParsing -ErrorAction Stop
+        Write-Host 'Downloaded.' -ForegroundColor Green
+    } catch {
+        Write-Host "Download failed: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Clone the repo instead: git clone https://github.com/EngMohamedNowar/PowerCLI.git" -ForegroundColor Yellow
+        return
+    }
+    $ScriptRoot = $script:PowerCLIRoot
+} else {
+    $ScriptRoot = $PSScriptRoot
+}
+
 $ErrorActionPreference = 'Continue'
 $ProgressPreference    = 'SilentlyContinue'
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-$RepoRoot   = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$ProfileSrc = Join-Path $PSScriptRoot 'PowerCLI.ps1'
+$RepoRoot   = if ($ScriptRoot -and (Test-Path (Join-Path $ScriptRoot '..\..'))) { (Resolve-Path (Join-Path $ScriptRoot '..\..')).Path } else { $ScriptRoot }
+$ProfileSrc = Join-Path $ScriptRoot 'PowerCLI.ps1'
 
 $SharedDir  = Join-Path $env:USERPROFILE 'Documents\PowerShell'
 $SharedFile = Join-Path $SharedDir 'PowerCLI.ps1'
@@ -306,7 +331,7 @@ if (-not (Test-Path $ProfileSrc)) {
     Write-Ok "shared profile  -> $SharedFile"
 
     # --- prompt theme ---
-    $themeSrc = Join-Path $PSScriptRoot 'themes\powercli.omp.json'
+$themeSrc = Join-Path $ScriptRoot 'themes\powercli.omp.json'
     if (Test-Path $themeSrc) {
         New-Item -ItemType Directory -Force -Path $ThemeDir | Out-Null
         Copy-Item $themeSrc (Join-Path $ThemeDir 'powercli.omp.json') -Force
