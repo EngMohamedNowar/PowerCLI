@@ -607,5 +607,14 @@ function global:psclihelp {
 }
 
 # ==============================================================================
-#  SECTION 10 :: (removed - no startup banner)
+#  SECTION 10 :: Startup (clear screen to remove 'Loading profiles...' message)
 # ==============================================================================
+
+# Clear the screen to remove the 'Loading personal and system profiles took Xms'
+# message that PowerShell prints after profile loading.
+try {
+    if (-not [Console]::IsOutputRedirected) {
+        $e = [char]27
+        [Console]::Out.Write("$($e)[2J$($e)[H")
+    }
+} catch { }
