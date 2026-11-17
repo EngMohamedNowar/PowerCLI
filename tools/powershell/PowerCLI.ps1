@@ -12,7 +12,14 @@ $ErrorActionPreference = 'Continue'
 # Windows Terminal (which already uses -NoLogo). Only on the first load so
 # that reload-profile does not wipe the screen.
 if (-not $global:PowerCLILoaded) {
-    Clear-Host
+    try {
+        if (-not [Console]::IsOutputRedirected) {
+            # Use ANSI escape to clear the screen (works even when
+            # Clear-Host fails due to an invalid console handle).
+            $e = [char]27
+            [Console]::Out.Write("$($e)[2J$($e)[H")
+        }
+    } catch { }
     $global:PowerCLILoaded = $true
 }
 
@@ -600,10 +607,5 @@ function global:psclihelp {
 }
 
 # ==============================================================================
-#  SECTION 10 :: Startup banner
+#  SECTION 10 :: (removed - no startup banner)
 # ==============================================================================
-
-Write-Host ''
-Write-Host '  PowerCLI ready.' -ForegroundColor Cyan
-Write-Host "  Type 'psclihelp' for the command reference." -ForegroundColor DarkGray
-Write-Host ''
