@@ -8,6 +8,14 @@
 
 $ErrorActionPreference = 'Continue'
 
+# Suppress the 'PowerShell 7.7.0' startup banner when running outside
+# Windows Terminal (which already uses -NoLogo). Only on the first load so
+# that reload-profile does not wipe the screen.
+if (-not $global:PowerCLILoaded) {
+    Clear-Host
+    $global:PowerCLILoaded = $true
+}
+
 # ==============================================================================
 #  SECTION 0 :: Environment detection & shared configuration
 # ==============================================================================

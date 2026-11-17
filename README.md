@@ -47,6 +47,16 @@ Then **close and reopen Windows Terminal** (required for the font).
 5. Writes the profile files (PS 5.1 and PS 7)
 6. Verifies everything
 
+> **Important:** The Nerd Font icons (📁 ⎇ 🕐 etc.) only render in a terminal
+> that uses the Nerd Font. The installer sets Windows Terminal's font to
+> `CaskaydiaCove NF` automatically. If you use a different terminal (VS Code,
+> ConEmu, etc.), set its font to `CaskaydiaCove NF` manually, or the icons
+> will appear as empty boxes.
+>
+> The `PowerShell 7.7.0` startup banner is suppressed automatically by the
+> profile (via `Clear-Host` on first load) and by Windows Terminal (via
+> `-NoLogo` in the profile's commandline).
+
 > **OneDrive note:** if your Documents folder is redirected to OneDrive
 > (e.g. `C:\Users\KING1\OneDrive\Documents\...`), the installer detects this
 > automatically via `$PROFILE` and writes to the correct location. No manual
