@@ -14,10 +14,7 @@ $ErrorActionPreference = 'Continue'
 if (-not $global:PowerCLILoaded) {
     try {
         if (-not [Console]::IsOutputRedirected) {
-            # Use ANSI escape to clear the screen (works even when
-            # Clear-Host fails due to an invalid console handle).
-            $e = [char]27
-            [Console]::Out.Write("$($e)[2J$($e)[H")
+            Clear-Host
         }
     } catch { }
     $global:PowerCLILoaded = $true
@@ -607,14 +604,23 @@ function global:psclihelp {
 }
 
 # ==============================================================================
-#  SECTION 10 :: Startup (clear screen to remove 'Loading profiles...' message)
+#  SECTION 10 :: Startup (suppress 'Loading profiles took Xms' message)
 # ==============================================================================
 
-# Clear the screen to remove the 'Loading personal and system profiles took Xms'
-# message that PowerShell prints after profile loading.
-try {
-    if (-not [Console]::IsOutputRedirected) {
-        $e = [char]27
-        [Console]::Out.Write("$($e)[2J$($e)[H")
-    }
-} catch { }
+# PowerShell prints 'Loading personal and system profiles took Xms' after the
+# profile finishes if loading took > 500ms. A one-shot timer clears the screen
+# 1 second later, after the message has been printed.
+if (-not [Console]::IsOutputRedirected -and -not $global:PowerCLIClearTimer) {
+    try {
+        $clearTimer = New-Object System.Timers.Timer
+        $clearTimer.Interval = 1000
+        $clearTimer.AutoReset = $false
+        $null = Register-ObjectEvent -InputObject $clearTimer -EventName 'Elapsed' -Action {
+            try { Clear-Host } catch { }
+            $sender.Stop()
+            $sender.Dispose()
+        }
+        $clearTimer.Start()
+        $global:PowerCLIClearTimer = $clearTimer
+    } catch { }
+}
