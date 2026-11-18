@@ -29,11 +29,12 @@ $profileDir = Split-Path $PROFILE
 $documentsDir = Split-Path $profileDir
 
 $global:PowerCLI = [ordered]@{
-    LogDir      = (Join-Path $env:TEMP 'PowerCLI\logs')
-    RunDir      = (Join-Path $env:TEMP 'PowerCLI\run')
-    Theme       = 'jandedobbeleer'
-    ThemePath   = (Join-Path $documentsDir 'PowerShell\themes\powercli.omp.json')
-    ProfilePath = $PSCommandPath
+    LogDir         = (Join-Path $env:TEMP 'PowerCLI\logs')
+    RunDir         = (Join-Path $env:TEMP 'PowerCLI\run')
+    Theme          = 'jandedobbeleer'
+    ThemePath      = (Join-Path $documentsDir 'PowerShell\themes\powercli.omp.json')
+    PlainThemePath = (Join-Path $documentsDir 'PowerShell\themes\powercli-plain.omp.json')
+    ProfilePath    = $PSCommandPath
 }
 
 $global:PowerCLIBoxed     = ([char]0x2502)  # |
@@ -139,11 +140,63 @@ function global:Get-GitOutput {
              Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] })
 }
 
+# ---------------------------------------------------------------------------
+#  Nerd Font detection
+#  The prompt icons (, , ,  ...) live in the Nerd Font's private-use
+#  area. If the active terminal font does not include them, every icon shows
+#  up as an empty box (tofu). Detect support cheaply (no Add-Type - that costs
+#  ~470ms) and fall back to a glyph-free theme when the font is not usable.
+# ---------------------------------------------------------------------------
+
+function global:Test-PowerCLINerdFont {
+    # Explicit overrides always win.
+    if ($env:POWERCLI_PLAIN -eq '1')       { return $false }
+    if ($env:POWERCLI_FORCE_GLYPHS -eq '1') { return $true }
+
+    $isNerd = { param($Name) [bool]($Name -and ($Name -match '\bNF\b|\bNFM\b|Nerd Font|Nerd')) }
+
+    # 1) Windows Terminal knows exactly which font it renders with.
+    if ($env:WT_SESSION) {
+        $wt = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'
+        if (Test-Path $wt) {
+            try {
+                $ff = (Get-Content $wt -Raw -ErrorAction Stop | ConvertFrom-Json).profiles.defaults.fontFace
+                if ($ff) { return (& $isNerd $ff) }   # authoritative for WT
+            } catch { }
+        }
+    }
+
+    # 2) Any other terminal: assume a Nerd Font the user deliberately installed
+    #    is also the font they chose to use; if none is installed, glyphs are
+    #    guaranteed to be boxes.
+    $nrd = $false
+    foreach ($key in @(
+        'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts',
+        'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
+    )) {
+        try {
+            $hit = (Get-ItemProperty -Path $key -ErrorAction Stop).PSObject.Properties |
+                   Where-Object { (& $isNerd $_.Name) } |
+                   Select-Object -First 1
+            if ($hit) { $nrd = $true; break }
+        } catch { }
+    }
+    return $nrd
+}
+
+$global:PowerCLINerdFont = Test-PowerCLINerdFont
+
 $global:PowerCLIUseOmp = $false
 try {
     if ($env:POWERCLI_NO_OMP -ne '1' -and (Get-Command oh-my-posh -ErrorAction Ignore)) {
-        $themeConfig = if (Test-Path $global:PowerCLI.ThemePath) { $global:PowerCLI.ThemePath }
-                        else { $global:PowerCLI.Theme }
+        # Pick the glyph theme only when the terminal can actually render it.
+        $themeConfig = if ($global:PowerCLINerdFont -and (Test-Path $global:PowerCLI.ThemePath)) {
+                        $global:PowerCLI.ThemePath
+                    } elseif (-not $global:PowerCLINerdFont -and (Test-Path $global:PowerCLI.PlainThemePath)) {
+                        $global:PowerCLI.PlainThemePath
+                    } elseif (Test-Path $global:PowerCLI.ThemePath) {
+                        $global:PowerCLI.ThemePath
+                    } else { $global:PowerCLI.Theme }
         $initScript = (& oh-my-posh init pwsh --config $themeConfig 2>$null | Out-String)
         if ($initScript -and $initScript.Trim().Length -gt 0) {
             Invoke-Expression $initScript
@@ -189,7 +242,9 @@ if ($global:PowerCLIUseOmp -and $global:PowerCLIOmpPromptBlock -and $global:Powe
         if (-not $left) { return $left }
 
         $e     = [char]27
-        $clock = "$($e)[38;2;124;140;165m $([char]0xF017) $(Get-Date -Format 'HH:mm:ss')$($e)[0m"
+        # The clock glyph is Nerd-Font-only; use a plain character otherwise.
+        $clockIcon = if ($global:PowerCLINerdFont) { "$([char]0xF017)" } else { '' }
+        $clock = "$($e)[38;2;124;140;165m $clockIcon $(Get-Date -Format 'HH:mm:ss')$($e)[0m"
         $cw    = Get-PowerCLIVisibleWidth $clock
         $lw    = Get-PowerCLIVisibleWidth $left
         $tw    = Get-PowerCLITerminalWidth

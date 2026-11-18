@@ -51,6 +51,7 @@ if (-not $ScriptRoot -or -not (Test-Path (Join-Path $ScriptRoot 'PowerCLI.ps1'))
     try {
         Invoke-WebRequest -Uri "$baseUrl/PowerCLI.ps1" -OutFile "$ScriptRoot\PowerCLI.ps1" -UseBasicParsing -ErrorAction Stop
         Invoke-WebRequest -Uri "$baseUrl/themes/powercli.omp.json" -OutFile "$ScriptRoot\themes\powercli.omp.json" -UseBasicParsing -ErrorAction Stop
+        Invoke-WebRequest -Uri "$baseUrl/themes/powercli-plain.omp.json" -OutFile "$ScriptRoot\themes\powercli-plain.omp.json" -UseBasicParsing -ErrorAction Stop
         Write-Host 'Downloaded.' -ForegroundColor Green
     } catch {
         Write-Host "Download failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -335,14 +336,22 @@ if (-not (Test-Path $ProfileSrc)) {
     Copy-Item $ProfileSrc $SharedFile -Force
     Write-Ok "shared profile  -> $SharedFile"
 
-    # --- prompt theme ---
+    # --- prompt themes (glyph + plain fallback) ---
 $themeSrc = Join-Path $ScriptRoot 'themes\powercli.omp.json'
+    $plainSrc = Join-Path $ScriptRoot 'themes\powercli-plain.omp.json'
     if (Test-Path $themeSrc) {
         New-Item -ItemType Directory -Force -Path $ThemeDir | Out-Null
         Copy-Item $themeSrc (Join-Path $ThemeDir 'powercli.omp.json') -Force
         Write-Ok "prompt theme   -> $(Join-Path $ThemeDir 'powercli.omp.json')"
     } else {
         Write-Warn2 "theme file not found: $themeSrc"
+    }
+    if (Test-Path $plainSrc) {
+        New-Item -ItemType Directory -Force -Path $ThemeDir | Out-Null
+        Copy-Item $plainSrc (Join-Path $ThemeDir 'powercli-plain.omp.json') -Force
+        Write-Ok "plain theme    -> $(Join-Path $ThemeDir 'powercli-plain.omp.json')"
+    } else {
+        Write-Warn2 "plain theme not found: $plainSrc"
     }
 
     $bootstrap = @"

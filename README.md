@@ -182,7 +182,8 @@ PowerCLI/
     ├── PowerCLI.ps1                   ← the CLI (632 lines)
     ├── Install-CLI.ps1                ← idempotent installer
     └── themes/
-        └── powercli.omp.json          ← the prompt theme
+        ├── powercli.omp.json          ← the prompt theme (Nerd Font glyphs)
+        └── powercli-plain.omp.json    ← glyph-free fallback theme
 ```
 
 `tools/powershell/` is **self-contained** — copying just that folder to a new
@@ -298,6 +299,29 @@ automatically, and the stray `.git` was removed.
 The console codepage was IBM437. Fixed by forcing UTF-8:
 `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`.
 
+### 14. Users see weird symbols (empty boxes) in the prompt
+
+Users who ran PowerCLI in a terminal that was **not** using a Nerd Font saw the
+prompt icons (, , , , ...) as empty boxes / tofu. The old code always
+loaded the glyph theme, so a missing or unselected font guaranteed broken output.
+
+Fixed with automatic detection at load time:
+
+- `Test-PowerCLINerdFont` checks — cheaply, with **no `Add-Type`** (compiling
+  C# costs ~470 ms, which would blow the 500 ms profile budget):
+  1. `POWERCLI_PLAIN` / `POWERCLI_FORCE_GLYPHS` overrides
+  2. Windows Terminal `settings.json` `fontFace` (authoritative when
+     `WT_SESSION` is set)
+  3. the per-user / system font registry for any installed Nerd Font
+- If a Nerd Font is usable → the glyph theme loads as before.
+- If not → the new `powercli-plain.omp.json` loads instead: same Nord palette
+  and git status, but only plain Unicode (uses `.Ref` instead of `.HEAD`,
+  because `.HEAD` injects the `U+E0A0` branch icon).
+- The right-hand clock drops its `U+F017` icon when no Nerd Font is present.
+
+Result: **zero tofu boxes in any terminal**, with the full experience kept for
+terminals that do have the font.
+
 ---
 
 ## Toggles
@@ -306,6 +330,8 @@ The console codepage was IBM437. Fixed by forcing UTF-8:
 |---|---|
 | `$env:POWERCLI_NO_CLOCK = '1'` | hide the clock |
 | `$env:POWERCLI_NO_OMP = '1'` | use the built-in native prompt instead of Oh-My-Posh |
+| `$env:POWERCLI_PLAIN = '1'` | force the glyph-free theme (no Nerd Font icons) |
+| `$env:POWERCLI_FORCE_GLYPHS = '1'` | force the Nerd Font theme even if detection says otherwise |
 
 Apply changes without restarting:
 
@@ -319,7 +345,7 @@ reload-profile
 
 | Symptom | Fix |
 |---|---|
-| Prompt shows empty boxes `□` | Nerd Font missing — restart Windows Terminal after install |
+| Prompt shows empty boxes `□` | Nerd Font missing — restart Windows Terminal after install. The profile now auto-detects this and loads the plain theme, so boxes should not appear; if they do, set `$env:POWERCLI_PLAIN='1'` and run `reload-profile` |
 | `. $PROFILE` → "not recognized" | run `Install-CLI.ps1` |
 | Console shows `?` instead of symbols | console codepage is 437 — the profile forces UTF-8 |
 | Terminal settings ignored | `settings.json` must be UTF-8 **without** BOM |
