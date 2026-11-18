@@ -612,15 +612,12 @@ function global:psclihelp {
 # 1 second later, after the message has been printed.
 if (-not [Console]::IsOutputRedirected -and -not $global:PowerCLIClearTimer) {
     try {
-        $clearTimer = New-Object System.Timers.Timer
-        $clearTimer.Interval = 1000
-        $clearTimer.AutoReset = $false
-        $null = Register-ObjectEvent -InputObject $clearTimer -EventName 'Elapsed' -Action {
-            try { Clear-Host } catch { }
-            $sender.Stop()
-            $sender.Dispose()
-        }
-        $clearTimer.Start()
-        $global:PowerCLIClearTimer = $clearTimer
+        $rs = [runspacefactory]::CreateRunspace()
+        $rs.Open()
+        $ps = [powershell]::Create()
+        $ps.Runspace = $rs
+        $null = $ps.AddScript('Start-Sleep -Seconds 1; try { Clear-Host } catch { }')
+        $handle = $ps.BeginInvoke()
+        $global:PowerCLIClearTimer = $ps
     } catch { }
 }
