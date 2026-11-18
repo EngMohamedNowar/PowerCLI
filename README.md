@@ -1,34 +1,58 @@
-# PowerCLI — Professional PowerShell CLI
+# PowerCLI
 
-A complete, self-contained PowerShell environment for Windows developers:
+> A polished, self-contained PowerShell environment for Windows developers —
+> a git-aware prompt, smart aliases, and a one-command installer.
 
-- **Prompt**: Oh-My-Posh with a custom **Nord** theme — muted, eye-friendly colours
-- **Right-aligned clock** that stays on the right edge (even after a terminal resize)
-- **Nerd Font** (CaskaydiaCove NF) for crisp icons
-- **41 functions + 21 aliases** for navigation, git, .NET, Docker and general tasks
-- **Idempotent installer** — one command on a fresh machine
-- **0 errors** on load (PS 5.1 and PS 7)
-
-```
- user │ 📁 my-project │ ⎇ master ↑1 ✎ ?1 ~2 │ ✔          🕐 13:20:48
- slate   ice blue        mauve  grn  amb    ice   dim
-                        ↑ left side                    ↑ right edge
-```
+![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square&logo=windows10)
+![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-5391FE?style=flat-square&logo=powershell)
+![Prompt](https://img.shields.io/badge/prompt-Oh--My--Posh%20%2B%20Nord-2F9CC9?style=flat-square)
+![Errors](https://img.shields.io/badge/load%20errors-0-brightgreen?style=flat-square)
+![Lines](https://img.shields.io/badge/profile-678%20lines-lightgrey?style=flat-square)
 
 ![PowerCLI prompt](assets/prompt.png)
 
-The clock is pinned to the right edge of the terminal while the text cursor
-stays on the left, so typing is never disturbed by it.
+---
+
+## Contents
+
+- [Why PowerCLI](#why-powercli)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Command reference](#command-reference)
+- [Prompt & theme](#prompt--theme)
+- [Configuration](#configuration)
+- [How it works](#how-it-works)
+- [Troubleshooting](#troubleshooting)
+- [Project layout](#project-layout)
 
 ---
 
-## Install (one command)
+## Why PowerCLI
+
+The stock PowerShell prompt gives you none of the context you actually need.
+PowerCLI adds it in one install:
+
+| | |
+|---|---|
+| **Git at a glance** | branch, ahead/behind, modified files and stash count, without running `git status` |
+| **Right-aligned clock** | pinned to the right edge — and it stays there after a resize, without stealing your typing position |
+| **Nord palette** | muted, low-contrast colours that stay readable over a long session |
+| **48 commands + 21 aliases** | git, .NET, Docker, SQL and shell helpers under short names |
+| **Font auto-detection** | falls back to a glyph-free theme so you never see `□` boxes |
+| **Idempotent installer** | one command on a fresh machine; safe to run twice |
+| **Zero load errors** | verified on PowerShell 5.1 and 7+ |
+
+---
+
+## Install
+
+### One-liner
 
 ```powershell
 iex ((irm https://raw.githubusercontent.com/EngMohamedNowar/PowerCLI/main/tools/powershell/Install-CLI.ps1).TrimStart([char]0xFEFF))
 ```
 
-Or from a clone:
+### From a clone
 
 ```powershell
 git clone https://github.com/EngMohamedNowar/PowerCLI.git
@@ -36,70 +60,69 @@ cd PowerCLI
 .\tools\powershell\Install-CLI.ps1
 ```
 
-Then **close and reopen Windows Terminal** (required for the font).
+Then **close and reopen Windows Terminal** — this is required for the font to
+take effect.
 
 ### What the installer does
 
-1. Sets the execution policy to `RemoteSigned`
-2. Installs **Git** + **PowerShell 7** via `winget` (if missing)
-3. Downloads and registers the **CaskaydiaCove NF** Nerd Font (per user, no admin)
-4. Patches Windows Terminal: font + soft Nord palette + PowerShell 7 as default
-5. Writes the profile files (PS 5.1 and PS 7)
-6. Verifies everything
-
-> **Important:** The Nerd Font icons (📁 ⎇ 🕐 etc.) only render in a terminal
-> that uses the Nerd Font. The installer sets Windows Terminal's font to
-> `CaskaydiaCove NF` automatically. If you use a different terminal (VS Code,
-> ConEmu, etc.), set its font to `CaskaydiaCove NF` manually, or the icons
-> will appear as empty boxes.
->
-> The `PowerShell 7.7.0` startup banner is suppressed automatically by the
-> profile (via `Clear-Host` on first load) and by Windows Terminal (via
-> `-NoLogo` in the profile's commandline).
-
-> **OneDrive note:** if your Documents folder is redirected to OneDrive
-> (e.g. `C:\Users\KING1\OneDrive\Documents\...`), the installer detects this
-> automatically via `$PROFILE` and writes to the correct location. No manual
-> copying needed.
+| # | Step | Notes |
+|---|---|---|
+| 1 | Execution policy → `RemoteSigned` | current user scope |
+| 2 | Git + PowerShell 7 + Oh-My-Posh | via `winget`, only if missing |
+| 3 | CaskaydiaCove NF Nerd Font | per-user, **no admin required** |
+| 4 | Patch Windows Terminal | font, Nord palette, PS 7 as default |
+| 5 | Write profile files | both PS 5.1 and PS 7 bootstraps |
+| 6 | Verify | confirms every component is detected |
 
 ### Installer options
 
 | Flag | Effect |
 |---|---|
-| `-SkipTools` | don't touch winget (Git / PowerShell 7 already present) |
-| `-SkipFont` | don't download / register the Nerd Font |
+| `-SkipTools` | skip winget (Git / PowerShell 7 already present) |
+| `-SkipFont` | skip the Nerd Font download / registration |
 | `-ForceFont` | re-register the font even if already present |
 
 The installer is **idempotent** — running it twice is safe.
 
+> **OneDrive?** If your Documents folder is redirected to OneDrive, the
+> installer detects it through `$PROFILE` and writes to the correct location
+> automatically. No manual copying.
+
 ---
 
-## Run it
+## Quick start
 
 ```powershell
-status      # environment summary
-psclihelp   # full command reference
+status        # environment summary
+psclihelp     # full command reference
 ```
 
 ---
 
 ## Command reference
 
+> Full tables with key bindings live in **[README-CLI.md](README-CLI.md)**.
+
 ### Navigation
+
 | Command | Description |
 |---|---|
 | `mkcd <path>` | create a directory and enter it |
 | `..` / `...` | up one / two levels |
+| `ff <name>` | find files by name (recursive) |
+| `grep <pattern>` | search file contents |
 | `psclihelp` | show the command reference |
 | `status` | environment summary |
 
 ### Git
+
 | Command | Description |
 |---|---|
 | `gs` | `git status -sb` |
 | `gb` | `git branch -v` |
 | `glog` | `git log --oneline --graph --decorate` |
 | `gd` / `gadd` | `git diff` / `git add` |
+| `git-staged` | `git diff --staged` |
 | `gcommit <msg>` | `git commit -m` |
 | `gac <msg>` | `git add --all` + `git commit -m` in one go |
 | `gpull` / `gpush` | `git pull --rebase` / `git push` |
@@ -107,8 +130,13 @@ psclihelp   # full command reference
 | `gnew <branch>` | create and switch to a new branch |
 | `groot` | jump to the repository root |
 | `gst` | `git stash` |
+| `git-undo` | `git reset --soft HEAD~1` |
+
+> Alias names deliberately avoid PowerShell built-ins (`gl` = `Get-Location`,
+> `gc` = `Get-Content`, `gp` = `Get-ItemProperty`).
 
 ### Build / Test (.NET)
+
 | Command | Description |
 |---|---|
 | `build [proj]` | `dotnet build` |
@@ -118,30 +146,35 @@ psclihelp   # full command reference
 | `restore [proj]` | `dotnet restore` |
 | `publish [proj]` | `dotnet publish` |
 | `clean [proj]` | `dotnet clean` |
+| `packlist [proj]` | list packages (transitive) |
+| `outdated [proj]` | list outdated packages |
+| `dotnetinfo` | SDK version + installed runtimes |
 | `b` / `br` / `t` / `rw` | build / run / test / restore |
 
 ### Docker
+
 | Command | Description |
 |---|---|
-| `dps` | `docker ps` |
+| `dps` / `dp` | `docker ps` |
 | `dpa` | `docker ps -a` |
 | `dc <args>` | `docker compose <args>` |
 | `docker-clean` | prune everything |
 | `docker-stop-all` | stop all containers |
-| `dp` | alias for `dps` |
 
 ### Database / SQL
+
+Available only when `sqlcmd` is installed.
+
 | Command | Description |
 |---|---|
 | `db-query <sql>` | run a SQL query (localhost,1433) |
 | `db-list` | list databases |
 
 ### General
+
 | Command | Description |
 |---|---|
-| `mkcd <path>` | create a directory and enter it |
-| `ff <name>` | find files by name (recursive) |
-| `grep <pattern>` | search file contents |
+| `touch <file>` | create a file, or update its timestamp |
 | `json <file>` | pretty-print JSON |
 | `ports [port]` | show listening ports |
 | `killport <port>` | kill the process on a port |
@@ -152,12 +185,23 @@ psclihelp   # full command reference
 
 ---
 
-## Colour palette (Nord)
+## Prompt & theme
+
+```
+ user │ 📁 my-project │ ⎇ master ↑1 ✎ ?1 ~2 │ ✔          🕐 13:20:48
+ slate   ice blue        mauve  grn  amb    ice   dim
+                        ↑ left side                    ↑ right edge
+```
+
+The clock is rendered by the profile itself using ANSI cursor positioning, so
+the text cursor stays on the left while the clock sits on the right edge.
+
+### Colour palette (Nord)
 
 | Where | Hex |
 |---|---|
-| terminal background | `#1C1C1C` (soft charcoal, not pure black) |
-| terminal foreground | `#D8DEE9` (off-white, not pure white) |
+| background | `#1C1C1C` — soft charcoal, not pure black |
+| foreground | `#D8DEE9` — off-white, not pure white |
 | cursor | `#88C0D0` |
 | selection | `#3B4252` |
 | user segment | bg `#3B4252` / fg `#D8DEE9` |
@@ -171,160 +215,9 @@ psclihelp   # full command reference
 
 ---
 
-## Files
+## Configuration
 
-```
-PowerCLI/
-├── README.md                          ← this file
-├── README-CLI.md                      ← detailed command reference
-├── SETUP-CLI.md                       ← step-by-step reproduction guide
-└── tools/powershell/
-    ├── PowerCLI.ps1                   ← the CLI (632 lines)
-    ├── Install-CLI.ps1                ← idempotent installer
-    └── themes/
-        ├── powercli.omp.json          ← the prompt theme (Nerd Font glyphs)
-        └── powercli-plain.omp.json    ← glyph-free fallback theme
-```
-
-`tools/powershell/` is **self-contained** — copying just that folder to a new
-machine and running `Install-CLI.ps1` is enough.
-
----
-
-## Problems Fixed
-
-This CLI was built to solve real problems encountered on a Windows dev machine.
-Each one is documented so you know *why* the code is shaped the way it is.
-
-### 1. Git branch not showing in the traditional CLI
-
-The default PowerShell prompt does **not** show the current git branch. You had
-to run `git status` or `git branch` every time. PowerCLI's prompt shows the
-branch, ahead/behind counts, modified files and stash count at a glance:
-
-```
-⎇ master ↑1 ✎ ?1 ~2
-```
-
-### 2. `PowerShell 7.7.0` startup banner
-
-When opening PowerShell 7, the banner `PowerShell 7.7.0` + copyright line
-printed on every launch. Fixed two ways:
-
-- Windows Terminal `commandline` now includes `-NoLogo`
-- The profile calls `Clear-Host` (via ANSI escape) on first load, so even
-  `pwsh` opened from the Run dialog is clean
-
-### 3. Icons showing as empty boxes `□`
-
-Oh-My-Posh themes use Nerd Font glyphs. Without a Nerd Font installed, the
-terminal renders them as empty boxes. Fixed by:
-
-- Installing **CaskaydiaCove NF** (v3.5.1) per-user (no admin)
-- Registering it in `HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts`
-- Setting Windows Terminal `profiles.defaults.fontFace = "CaskaydiaCove NF"`
-
-### 4. Profile not found (`$PROFILE` points to OneDrive)
-
-On machines where Documents is redirected to OneDrive, PowerShell's `$PROFILE`
-points to `C:\Users\KING1\OneDrive\Documents\...` but hardcoded paths in
-scripts pointed to `C:\Users\KING1\Documents\...`. Fixed by deriving every
-path from `$PROFILE`:
-
-```powershell
-$profileDir   = Split-Path $PROFILE
-$documentsDir = Split-Path $profileDir
-$SharedDir    = Join-Path $documentsDir 'PowerShell'
-```
-
-Works on any machine, with or without OneDrive.
-
-### 5. Clock not fixed on the right
-
-Oh-My-Posh's right-aligned block renders inside the *same* prompt string,
-leaving the text cursor sitting **after** the clock, so everything you typed
-appeared over there. Fixed by rendering the clock ourselves with ANSI cursor
-positioning, leaving the cursor where you are typing.
-
-### 6. Clock wraps onto the next line after a resize
-
-PSReadLine caches the prompt string and re-draws it on a resize, so the
-clock's absolute column went stale and wrapped. Fixed with a 500 ms timer
-that detects the width change and calls `Invoke-PoshPromptRepaint`, then writes
-`ESC[1B ESC[2K ESC[1A` to clear any stale clock on the next line.
-
-### 7. `iex (irm ...)` not working
-
-`Invoke-Expression` cannot parse scripts with a BOM or `[CmdletBinding()]`.
-Fixed by removing both from the installer and documenting the working one-liner:
-
-```powershell
-iex ((irm <url>).TrimStart([char]0xFEFF))
-```
-
-### 8. `Set-Alias: The AllScope option cannot be removed`
-
-Redefining a built-in alias (like `cat`, `clear`, `gl`) with `-Scope Global`
-throws because those aliases have the `AllScope` option. Fixed by using
-`-Option AllScope` for every alias.
-
-### 9. `Cannot validate argument on parameter 'Function'`
-
-Several key bindings (`CopyOrCancel`, `AddToHistory`, `Ctrl+Space`) are not
-valid in older PSReadLine versions. Fixed by binding each key individually
-inside a try/catch so one failure never blocks the rest.
-
-### 10. `$Error` polluted on every keystroke
-
-`-ErrorAction SilentlyContinue` still writes to `$Error`. `Ignore` does not.
-Native git stderr is recorded in `$Error` even with `2>$null`. Fixed by using
-`-ErrorAction Ignore` everywhere and routing native git calls through
-`cmd /c "... 2>nul"`.
-
-### 11. Oh-My-Posh module not registered
-
-The `oh-my-posh` PowerShell module is not in `$PSModulePath` on a fresh
-install. Fixed by using `oh-my-posh init pwsh` which emits a ready-to-run
-init script — no module registration needed.
-
-### 12. Stray empty git repo in the parent folder
-
-`D:\CarRentalApp\.git` was an empty repo (0 objects, 0 refs, no remote) from
-an accidental `git init`. It made `git status` show `?? C4_CarRentalApp/`
-instead of the real repo's status. `groot` now skips empty wrapper repos
-automatically, and the stray `.git` was removed.
-
-### 13. Console shows `?` instead of symbols
-
-The console codepage was IBM437. Fixed by forcing UTF-8:
-`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`.
-
-### 14. Users see weird symbols (empty boxes) in the prompt
-
-Users who ran PowerCLI in a terminal that was **not** using a Nerd Font saw the
-prompt icons (, , , , ...) as empty boxes / tofu. The old code always
-loaded the glyph theme, so a missing or unselected font guaranteed broken output.
-
-Fixed with automatic detection at load time:
-
-- `Test-PowerCLINerdFont` checks — cheaply, with **no `Add-Type`** (compiling
-  C# costs ~470 ms, which would blow the 500 ms profile budget):
-  1. `POWERCLI_PLAIN` / `POWERCLI_FORCE_GLYPHS` overrides
-  2. Windows Terminal `settings.json` `fontFace` (authoritative when
-     `WT_SESSION` is set)
-  3. the per-user / system font registry for any installed Nerd Font
-- If a Nerd Font is usable → the glyph theme loads as before.
-- If not → the new `powercli-plain.omp.json` loads instead: same Nord palette
-  and git status, but only plain Unicode (uses `.Ref` instead of `.HEAD`,
-  because `.HEAD` injects the `U+E0A0` branch icon).
-- The right-hand clock drops its `U+F017` icon when no Nerd Font is present.
-
-Result: **zero tofu boxes in any terminal**, with the full experience kept for
-terminals that do have the font.
-
----
-
-## Toggles
+Set these before the profile loads (or export and run `reload-profile`).
 
 | Variable | Effect |
 |---|---|
@@ -333,11 +226,38 @@ terminals that do have the font.
 | `$env:POWERCLI_PLAIN = '1'` | force the glyph-free theme (no Nerd Font icons) |
 | `$env:POWERCLI_FORCE_GLYPHS = '1'` | force the Nerd Font theme even if detection says otherwise |
 
-Apply changes without restarting:
+```powershell
+reload-profile    # apply changes without restarting the shell
+```
+
+---
+
+## How it works
+
+`tools/powershell/` is the source of truth; everything else is generated.
 
 ```powershell
-reload-profile
+$profileDir   = Split-Path $PROFILE          # handles OneDrive redirection
+$documentsDir = Split-Path $profileDir
+$SharedDir    = Join-Path $documentsDir 'PowerShell'
 ```
+
+The profile loads in sections — PSReadLine, prompt, encoding, aliases, then
+per-tool helpers — and **every section is wrapped so a failure can never break
+the shell**.
+
+Three details worth knowing:
+
+- **Font detection is cheap on purpose.** `Test-PowerCLINerdFont` reads the
+  Windows Terminal config and the font registry; it never calls `Add-Type`,
+  because compiling C# costs ~470 ms and would blow the 500 ms startup budget.
+- **Nerd Font glyphs are private-use codepoints.** Without the font they render
+  as `□`, so a glyph-free theme (`powercli-plain.omp.json`) is loaded instead.
+- **Errors use `-ErrorAction Ignore`.** `SilentlyContinue` still writes to
+  `$Error`, which would pollute the error list on every keystroke.
+
+The full list of problems solved during development — and why the code is
+shaped the way it is — is in **[DESIGN.md](DESIGN.md)**.
 
 ---
 
@@ -345,11 +265,45 @@ reload-profile
 
 | Symptom | Fix |
 |---|---|
-| Prompt shows empty boxes `□` | Nerd Font missing — restart Windows Terminal after install. The profile now auto-detects this and loads the plain theme, so boxes should not appear; if they do, set `$env:POWERCLI_PLAIN='1'` and run `reload-profile` |
+| Prompt shows empty boxes `□` | The profile auto-detects this and loads the plain theme. If boxes persist, set `$env:POWERCLI_PLAIN='1'` and run `reload-profile`, then restart Windows Terminal |
 | `. $PROFILE` → "not recognized" | run `Install-CLI.ps1` |
-| Console shows `?` instead of symbols | console codepage is 437 — the profile forces UTF-8 |
+| Console shows `?` instead of symbols | codepage is 437 — the profile forces UTF-8 |
 | Terminal settings ignored | `settings.json` must be UTF-8 **without** BOM |
 | No autocomplete suggestions | output is redirected (CI, pipes) — expected |
+| Icons missing in VS Code / ConEmu | set that terminal's font to `CaskaydiaCove NF` manually |
+
+---
+
+## Project layout
+
+```
+PowerCLI/
+├── README.md                      ← you are here
+├── README-CLI.md                  ← detailed command reference + key bindings
+├── SETUP-CLI.md                   ← step-by-step reproduction guide
+├── DESIGN.md                      ← every problem solved, and why
+├── assets/
+│   └── prompt.png                 ← screenshot
+└── tools/powershell/              ← self-contained; copy this to a new machine
+    ├── PowerCLI.ps1               ← the profile (678 lines)
+    ├── Install-CLI.ps1            ← idempotent installer
+    └── themes/
+        ├── powercli.omp.json      ← glyph theme (Nerd Font)
+        └── powercli-plain.omp.json← glyph-free fallback theme
+```
+
+`tools/powershell/` is **self-contained** — copying just that folder to a new
+machine and running `Install-CLI.ps1` is enough.
+
+---
+
+## Related documentation
+
+| File | Contents |
+|---|---|
+| **[README-CLI.md](README-CLI.md)** | full command reference, key bindings, installed stack |
+| **[SETUP-CLI.md](SETUP-CLI.md)** | step-by-step reproduction guide, registry/terminal settings |
+| **[DESIGN.md](DESIGN.md)** | the 14 problems solved, and the reasoning behind each |
 
 ---
 

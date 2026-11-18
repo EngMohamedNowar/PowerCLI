@@ -5,7 +5,8 @@ smart aliases, and general-purpose commands for git, .NET, Docker and the shell.
 
 > **Looking for the full picture?** See **[README.md](README.md)** — what the
 > system is, the colour palette, and the install one-liner.
-> **[SETUP-CLI.md](SETUP-CLI.md)** has the step-by-step reproduction guide.
+> **[SETUP-CLI.md](SETUP-CLI.md)** has the step-by-step reproduction guide, and
+> **[DESIGN.md](DESIGN.md)** explains every problem solved along the way.
 
 ---
 
@@ -97,6 +98,8 @@ psclihelp   # full command reference
 |---|---|
 | `mkcd <path>` | create a directory and enter it |
 | `..` / `...` | up one / two levels |
+| `ff <name>` | find files by name (recursive) |
+| `grep <pattern>` | search file contents |
 | `psclihelp` | show the command reference |
 | `status` | environment summary |
 
@@ -107,6 +110,7 @@ psclihelp   # full command reference
 | `gb` | `git branch -v` |
 | `glog` | `git log --oneline --graph --decorate` |
 | `gd` / `gadd` | `git diff` / `git add` |
+| `git-staged` | `git diff --staged` |
 | `gcommit <msg>` | `git commit -m` |
 | `gac <msg>` | `git add --all` + `git commit -m` in one go |
 | `gpull` / `gpush` | `git pull --rebase` / `git push` |
@@ -114,6 +118,7 @@ psclihelp   # full command reference
 | `gnew <branch>` | create and switch to a new branch |
 | `groot` | jump to the repository root |
 | `gst` | `git stash` |
+| `git-undo` | `git reset --soft HEAD~1` |
 
 > Alias names deliberately avoid PowerShell built-ins (`gl` = `Get-Location`,
 > `gc` = `Get-Content`, `gp` = `Get-ItemProperty` are left untouched).
@@ -128,19 +133,23 @@ psclihelp   # full command reference
 | `restore [proj]` | `dotnet restore` |
 | `publish [proj]` | `dotnet publish` |
 | `clean [proj]` | `dotnet clean` |
+| `packlist [proj]` | list packages (transitive) |
+| `outdated [proj]` | list outdated packages |
+| `dotnetinfo` | SDK version + installed runtimes |
 | `b` / `br` / `t` / `rw` | build / run / test / restore |
 
 ### Docker
 | Command | Description |
 |---|---|
-| `dps` | `docker ps` |
+| `dps` / `dp` | `docker ps` |
 | `dpa` | `docker ps -a` |
 | `dc <args>` | `docker compose <args>` |
 | `docker-clean` | prune everything |
 | `docker-stop-all` | stop all containers |
-| `dp` | alias for `dps` |
 
 ### Database / SQL
+Available only when `sqlcmd` is installed.
+
 | Command | Description |
 |---|---|
 | `db-list` | list databases |
@@ -149,9 +158,7 @@ psclihelp   # full command reference
 ### General
 | Command | Description |
 |---|---|
-| `mkcd <path>` | create a directory and enter it |
-| `ff <name>` | find files by name (recursive) |
-| `grep <pattern>` | search file contents |
+| `touch <file>` | create a file, or update its timestamp |
 | `json <file>` | pretty-print JSON |
 | `ports [port]` | show listening ports |
 | `killport <port>` | kill the process on a port |
@@ -190,6 +197,8 @@ low-contrast, so nothing shouts during a long session.
 |---|---|
 | `$env:POWERCLI_NO_CLOCK = '1'` | hide the clock |
 | `$env:POWERCLI_NO_OMP = '1'` | use the built-in native prompt instead of Oh-My-Posh |
+| `$env:POWERCLI_PLAIN = '1'` | force the glyph-free theme (no Nerd Font icons) |
+| `$env:POWERCLI_FORCE_GLYPHS = '1'` | force the Nerd Font theme even if detection says otherwise |
 
 Apply changes without restarting:
 
@@ -203,11 +212,12 @@ reload-profile
 
 | Symptom | Fix |
 |---|---|
-| Prompt shows empty boxes `□` | Nerd Font missing — restart Windows Terminal after install |
+| Prompt shows empty boxes `□` | The profile auto-detects this and loads the plain theme. If boxes persist, set `$env:POWERCLI_PLAIN='1'` and run `reload-profile`, then restart Windows Terminal |
 | `. $PROFILE` → "not recognized" | run `Install-CLI.ps1` |
 | Console shows `?` instead of symbols | console codepage is 437 — the profile forces UTF-8 |
 | Terminal settings ignored | `settings.json` must be UTF-8 **without** BOM |
 | No autocomplete suggestions | output is redirected (CI, pipes) — expected |
+| Icons missing in VS Code / ConEmu | set that terminal's font to `CaskaydiaCove NF` manually |
 
 ---
 
@@ -215,14 +225,18 @@ reload-profile
 
 ```
 PowerCLI/
-├── README.md                          ← this file
-├── README-CLI.md                      ← detailed command reference
+├── README.md                          ← overview, install, quick reference
+├── README-CLI.md                      ← this file (command reference)
 ├── SETUP-CLI.md                       ← step-by-step reproduction guide
+├── DESIGN.md                          ← every problem solved, and why
+├── assets/
+│   └── prompt.png                     ← screenshot
 └── tools/powershell/
-    ├── PowerCLI.ps1                   ← the CLI (632 lines)
+    ├── PowerCLI.ps1                   ← the profile (678 lines)
     ├── Install-CLI.ps1                ← idempotent installer
     └── themes/
-        └── powercli.omp.json          ← the prompt theme
+        ├── powercli.omp.json          ← glyph theme (Nerd Font)
+        └── powercli-plain.omp.json    ← glyph-free fallback theme
 ```
 
 `tools/powershell/` is **self-contained** — copying just that folder to a new
