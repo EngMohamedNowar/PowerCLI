@@ -314,15 +314,36 @@ if (-not (Test-Path $WtSettings)) {
         }
 
         # -NoLogo is what suppresses 'Loading personal and system profiles took Xms'.
-        # The 500ms threshold behind that message is hard-coded in PowerShell, so a
-        # slow machine (cold start, antivirus) will always trip it. Apply -NoLogo to
-        # *every* PowerShell profile, not just PowerShell 7 - otherwise the classic
-        # 'Windows PowerShell' tab still shows the message.
+        # The 500ms threshold behind that message is hard-coded in PowerShell -
+        # BOTH 5.1 and 7 print it - so a slow machine (cold start, antivirus)
+        # will always trip it. Apply -NoLogo to *every* PowerShell profile, not
+        # just PowerShell 7 - otherwise the classic 'Windows PowerShell' tab or
+        # a dynamic profile with no explicit commandline still shows it.
         foreach ($psProfile in $wt.profiles.list) {
             $cl = [string]$psProfile.commandline
-            if (-not $cl) { continue }
-            if ($cl -notmatch 'powershell\.exe|pwsh\.exe') { continue }
+            if (-not $cl) {
+                # Dynamic profiles carry no commandline; Windows Terminal then
+                # launches the shell with no arguments. Give the two PowerShell
+                # sources an explicit commandline so -NoLogo can be attached.
+                # Other sources (VS, Azure, WSL) are left untouched.
+                $implicit = switch ($psProfile.source) {
+                    'Windows.Terminal.PowershellCore'    { '%LOCALAPPDATA%\Microsoft\WindowsApps\pwsh.exe' }
+                    'Windows.Terminal.WindowsPowerShell' { '%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe' }
+                    default { $null }
+                }
+                if (-not $implicit) { continue }
+                $psProfile.commandline = "$implicit -NoLogo"
+                Write-Ok "set explicit -NoLogo commandline on '$($psProfile.name)'"
+                continue
+            }
+            if ($cl -notmatch '(?:pwsh|powershell)(?:\.exe)?\b') { continue }
             if ($cl -match '(?:^|\s)-NoLogo\b') { continue }
+            if ($cl -match '-command\b|-encodedcommand\b') {
+                # -Command swallows the rest of the line; appending after it
+                # would corrupt the command instead of switching the shell.
+                Write-Info "skipping '$($psProfile.name)' (-Command style commandline)"
+                continue
+            }
 
             $psProfile.commandline = ($cl.TrimEnd() + ' -NoLogo')
             Write-Ok "added -NoLogo to '$($psProfile.name)'"
