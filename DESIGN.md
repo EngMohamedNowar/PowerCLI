@@ -184,6 +184,28 @@ costs ~470 ms on its own.
 
 ---
 
+## 16. Git file counts cluttered the prompt
+
+A user screenshot from a second machine showed `✎ ?137 -602` inside the git
+segment. `.Working.String` dumps the raw per-file counts (untracked, modified,
+deleted), which reads like broken output on any large repository even though the
+data is accurate.
+
+Both themes now show a **single marker instead of numbers**: `✎` (glyph theme)
+or `*` (plain theme) whenever the working tree *or* the index has changes, and a
+bare stash icon when stashes exist. Branch status (`≡`, ahead/behind) is
+unchanged — it is compact and carries navigation information.
+
+Verified by rendering the theme against repositories in three states (clean,
+staged-only, working-tree-only): the marker appears exactly when the tree is
+dirty and no counts are printed in any state.
+
+The same screenshot also showed the right-aligned clock missing. That machine
+ran an older `PowerCLI.ps1` (copied before the clock wrapper existed); re-running
+`Install-CLI.ps1` replaces the profile and both themes with the current versions.
+
+---
+
 ## Design decisions worth knowing
 
 - **Alias names avoid PowerShell built-ins.** `gl` (= `Get-Location`),

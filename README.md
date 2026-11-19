@@ -188,13 +188,18 @@ Available only when `sqlcmd` is installed.
 ## Prompt & theme
 
 ```
- user │ 📁 my-project │ ⎇ master ↑1 ✎ ?1 ~2 │ ✔          🕐 13:20:48
- slate   ice blue        mauve  grn  amb    ice   dim
+ user │ 📁 my-project │ ⎇ master ↑1 ✎ │ ✔          🕐 13:20:48
+ slate   ice blue        mauve  grn  amb ice       dim
                         ↑ left side                    ↑ right edge
 ```
 
 The clock is rendered by the profile itself using ANSI cursor positioning, so
 the text cursor stays on the left while the clock sits on the right edge.
+
+The git segment deliberately shows **one marker, not numbers**: `✎` whenever the
+working tree or the index has changes (a bare `*` in the plain theme), and a
+stash icon when stashes exist. Raw counts such as `✎ ?137 -602` made the prompt
+look broken on large repositories even though the data was accurate.
 
 ### Colour palette (Nord)
 
@@ -209,7 +214,7 @@ the text cursor stays on the left while the clock sits on the right edge.
 | branch name | `#B48EAD` |
 | ahead / behind | `#A3BE8C` / `#BF616A` |
 | dirty indicators | `#EBCB8B` |
-| stash count | `#88C0D0` |
+| stash icon | `#88C0D0` |
 | exit-code check | `#A3BE8C` / `#BF616A` |
 | clock | `#7C8CA5` |
 
@@ -272,6 +277,7 @@ shaped the way it is — is in **[DESIGN.md](DESIGN.md)**.
 | Terminal settings ignored | `settings.json` must be UTF-8 **without** BOM |
 | No autocomplete suggestions | output is redirected (CI, pipes) — expected |
 | Icons missing in VS Code / ConEmu | set that terminal's font to `CaskaydiaCove NF` manually |
+| No clock on the right edge | the installed `PowerCLI.ps1` copy is out of date (or `$env:POWERCLI_NO_CLOCK='1'`) — re-run `Install-CLI.ps1`, then restart Windows Terminal |
 
 ---
 
