@@ -143,14 +143,18 @@ A user screenshot showed this line above the prompt. It is printed by the host
 **after** the profile finishes, and only when the combined load time exceeds
 **500 ms** — a hard-coded threshold with no environment variable to disable it.
 
-Two things were wrong:
+Three things were wrong:
 
 **a) `-NoLogo` was only applied to PowerShell 7.** That switch is the only
 supported way to suppress the message, but the installer patched just the
 `Windows.Terminal.PowershellCore` entry, so the classic **Windows PowerShell
 5.1** tab still printed it. The installer now walks *every* profile in
 `settings.json` whose `commandline` matches `powershell.exe` / `pwsh.exe` and
-appends `-NoLogo` to any that lacks it.
+appends `-NoLogo` to any that lacks it. A second pass covers profiles whose
+`commandline` is empty (Windows Terminal's dynamic PowerShell entries launch
+the shell with no arguments) by writing an explicit `-NoLogo` commandline for
+the two PowerShell sources — and refuses to append after `-Command`, where the
+switch would be swallowed as part of the command string.
 
 **b) The workaround in the profile never worked.** SECTION 10 used to spawn a
 background runspace that slept for a second and called `Clear-Host` to wipe the
@@ -158,6 +162,15 @@ message. A background runspace has no interactive host, so `Clear-Host` always
 threw *"A command that prompts the user failed because the host program … does
 not support user interaction"* and the `catch` swallowed it — while still paying
 for a runspace on every start. It is gone; the intent is documented in place.
+
+**c) The patch never reached the file the terminal actually reads.** On a
+machine where the themes had updated but the message stayed, the prompt's font
+warning revealed the cause: the installer assumed the Store package ID
+(`Microsoft.WindowsTerminal_8wekyb3d8bbwe`), so a Preview or unpackaged Windows
+Terminal was silently skipped. It now locates `settings.json` under *any*
+`*WindowsTerminal*` package plus the unpackaged path, prints the file it is
+patching, and the verification step reports `WT settings` / `WT -NoLogo` so a
+miss is visible in the installer output instead of only in the prompt.
 
 Verified by probe: with a deliberately slowed profile, `-NoExit -File` prints
 the message and `-NoLogo -NoExit -File` does not.
@@ -200,9 +213,11 @@ Verified by rendering the theme against repositories in three states (clean,
 staged-only, working-tree-only): the marker appears exactly when the tree is
 dirty and no counts are printed in any state.
 
-The same screenshot also showed the right-aligned clock missing. That machine
-ran an older `PowerCLI.ps1` (copied before the clock wrapper existed); re-running
-`Install-CLI.ps1` replaces the profile and both themes with the current versions.
+The same screenshot also showed the right-aligned clock missing. The installer
+now checks both plausible causes: an older installed `PowerCLI.ps1` (the clock
+wrapper arrived after the initial release — re-running replaces it with the
+current version) and a leftover `$env:POWERCLI_NO_CLOCK='1'` from earlier
+troubleshooting, which the verification step flags when set at user scope.
 
 ---
 

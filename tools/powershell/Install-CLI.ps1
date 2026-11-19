@@ -82,7 +82,15 @@ $WinPsBoot    = Join-Path $documentsDir 'WindowsPowerShell\Microsoft.PowerShell_
 
 $FontDir    = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
 $FontRegKey = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
-$WtSettings = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'
+# Locate settings.json for ANY installed Windows Terminal - Store, Preview or
+# the unpackaged build - instead of assuming the Store package ID (a Preview
+# install would otherwise never be patched).
+$WtSettings = @(
+    Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Packages') -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like '*WindowsTerminal*' } |
+        ForEach-Object { Join-Path $_.FullName 'LocalState\settings.json' }
+    Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\settings.json'
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 $NerdFontFamily = 'CaskaydiaCove NF'
 $NerdFontUrl    = 'https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/CascadiaCode.zip'
@@ -246,13 +254,14 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wPa
 # ---------------------------------------------------------------------------
 Write-Step 'Windows Terminal settings'
 
-if (-not (Test-Path $WtSettings)) {
-    Write-Warn2 "settings.json not found at $WtSettings"
+if (-not $WtSettings) {
+    Write-Warn2 'settings.json not found in any known Windows Terminal location'
     Write-Info 'Install Windows Terminal, then re-run this script to patch it'
 } else {
     try {
         Copy-Item $WtSettings "$WtSettings.backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
         Write-Ok 'settings.json backed up'
+        Write-Info "patching $WtSettings"
 
         $wt = Get-Content $WtSettings -Raw | ConvertFrom-Json
 
@@ -304,9 +313,11 @@ if (-not (Test-Path $WtSettings)) {
                 Write-Ok 'PowerShell 7 is already the default profile'
             }
 
-            # Suppress the 'PowerShell 7.7.0' startup banner.
-            if ($pwshProfile.commandline -ne '%LOCALAPPDATA%\\Microsoft\\WindowsApps\\pwsh.exe -NoLogo') {
-                $pwshProfile.commandline = '%LOCALAPPDATA%\\Microsoft\\WindowsApps\\pwsh.exe -NoLogo'
+            # Suppress the 'PowerShell 7.7.0' startup banner. Single backslashes:
+            # the value is written verbatim into commandline, and a doubled
+            # separator only works because CreateProcess happens to normalise it.
+            if ($pwshProfile.commandline -ne '%LOCALAPPDATA%\Microsoft\WindowsApps\pwsh.exe -NoLogo') {
+                $pwshProfile.commandline = '%LOCALAPPDATA%\Microsoft\WindowsApps\pwsh.exe -NoLogo'
                 Write-Ok 'added -NoLogo to the PowerShell 7 profile'
             }
         } else {
@@ -352,7 +363,8 @@ if (-not (Test-Path $WtSettings)) {
         # Windows Terminal requires UTF-8 *without* a BOM.
         $json = $wt | ConvertTo-Json -Depth 100
         [System.IO.File]::WriteAllText($WtSettings, $json, (New-Object System.Text.UTF8Encoding $false))
-        Write-Ok 'settings.json written (UTF-8, no BOM)'    } catch {
+        Write-Ok 'settings.json written (UTF-8, no BOM)'
+    } catch {
         Write-Fail "could not patch settings.json: $($_.Exception.Message)"
         Write-Info "set it manually: profiles.defaults.fontFace = '$NerdFontFamily'"
     }
@@ -432,6 +444,11 @@ $checks = @(
     @{ Name = 'Profile (PS 7)';   Test = { Test-Path $PwshBoot } }
     @{ Name = 'Profile (PS 5.1)'; Test = { Test-Path $WinPsBoot } }
     @{ Name = 'Shared profile';   Test = { Test-Path $SharedFile } }
+    @{ Name = 'WT settings';      Test = { [bool]$WtSettings } }
+    # Without -NoLogo on the launching commandline, PowerShell 7 and 5.1 both
+    # print 'Loading personal and system profiles took Xms' whenever the
+    # profile load crosses 500ms - the whole reason this installer patches WT.
+    @{ Name = 'WT -NoLogo';       Test = { $WtSettings -and ((Get-Content $WtSettings -Raw -ErrorAction Ignore) -match '-NoLogo\b') } }
 )
 
 $failed = 0
@@ -439,6 +456,14 @@ foreach ($c in $checks) {
     $ok = $false
     try { $ok = & $c.Test } catch { $ok = $false }
     if ($ok) { Write-Ok $c.Name } else { Write-Warn2 "$($c.Name) not detected"; $failed++ }
+}
+
+# The right-edge clock is the profile's own feature; a leftover env var from
+# earlier troubleshooting silently disables it in every future session.
+$noClockUser = [Environment]::GetEnvironmentVariable('POWERCLI_NO_CLOCK', 'User')
+if ($env:POWERCLI_NO_CLOCK -eq '1' -or $noClockUser -eq '1') {
+    Write-Warn2 "POWERCLI_NO_CLOCK=1 is set - the right-edge clock stays hidden"
+    Write-Info 'remove it with: Remove-Item Env:\POWERCLI_NO_CLOCK -ErrorAction Ignore; [Environment]::SetEnvironmentVariable("POWERCLI_NO_CLOCK", $null, "User")'
 }
 
 Write-Host ''
