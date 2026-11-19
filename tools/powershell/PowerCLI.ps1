@@ -659,20 +659,23 @@ function global:psclihelp {
 }
 
 # ==============================================================================
-#  SECTION 10 :: Startup (suppress 'Loading profiles took Xms' message)
+#  SECTION 10 :: Startup note
 # ==============================================================================
-
 # PowerShell prints 'Loading personal and system profiles took Xms' after the
-# profile finishes if loading took > 500ms. A one-shot timer clears the screen
-# 1 second later, after the message has been printed.
-if (-not [Console]::IsOutputRedirected -and -not $global:PowerCLIClearTimer) {
-    try {
-        $rs = [runspacefactory]::CreateRunspace()
-        $rs.Open()
-        $ps = [powershell]::Create()
-        $ps.Runspace = $rs
-        $null = $ps.AddScript('Start-Sleep -Seconds 1; try { Clear-Host } catch { }')
-        $handle = $ps.BeginInvoke()
-        $global:PowerCLIClearTimer = $ps
-    } catch { }
-}
+# profile finishes, but only when the combined load time exceeds 500 ms - a
+# hard-coded threshold with no environment variable to disable it.
+#
+# There is no way to suppress it from inside the profile: the message is
+# written by the host *after* this file has finished running. The only
+# supported switch is -NoLogo on the command line, which the installer now
+# adds to every PowerShell entry in Windows Terminal (both 5.1 and 7+).
+#
+# An earlier version of this section spawned a background runspace that slept
+# for a second and called Clear-Host to wipe the message. It never worked:
+# a background runspace has no interactive host, so Clear-Host always threw
+# 'does not support user interaction' and the catch swallowed it - while
+# still paying for a runspace on every start.
+#
+# Outside Windows Terminal (Win+R -> pwsh) there is no -NoLogo, so a slow
+# machine can still show the message. Speed is the only lever there; see
+# DESIGN.md for where the load time goes.

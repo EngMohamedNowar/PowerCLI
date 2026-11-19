@@ -313,6 +313,21 @@ if (-not (Test-Path $WtSettings)) {
             Write-Info 'no PowerShell 7 profile in Terminal yet - skipping default profile change'
         }
 
+        # -NoLogo is what suppresses 'Loading personal and system profiles took Xms'.
+        # The 500ms threshold behind that message is hard-coded in PowerShell, so a
+        # slow machine (cold start, antivirus) will always trip it. Apply -NoLogo to
+        # *every* PowerShell profile, not just PowerShell 7 - otherwise the classic
+        # 'Windows PowerShell' tab still shows the message.
+        foreach ($psProfile in $wt.profiles.list) {
+            $cl = [string]$psProfile.commandline
+            if (-not $cl) { continue }
+            if ($cl -notmatch 'powershell\.exe|pwsh\.exe') { continue }
+            if ($cl -match '(?:^|\s)-NoLogo\b') { continue }
+
+            $psProfile.commandline = ($cl.TrimEnd() + ' -NoLogo')
+            Write-Ok "added -NoLogo to '$($psProfile.name)'"
+        }
+
         # Windows Terminal requires UTF-8 *without* a BOM.
         $json = $wt | ConvertTo-Json -Depth 100
         [System.IO.File]::WriteAllText($WtSettings, $json, (New-Object System.Text.UTF8Encoding $false))

@@ -25,9 +25,10 @@ branch, ahead/behind counts, modified files and stash count at a glance:
 When opening PowerShell 7, the banner `PowerShell 7.7.0` + copyright line
 printed on every launch. Fixed two ways:
 
-- Windows Terminal `commandline` now includes `-NoLogo`
-- The profile calls `Clear-Host` (via ANSI escape) on first load, so even
-  `pwsh` opened from the Run dialog is clean
+- Windows Terminal `commandline` now includes `-NoLogo` — applied to **every**
+  PowerShell entry, not just PowerShell 7 (see #15)
+- The profile calls `Clear-Host` on first load, so even `pwsh` opened from the
+  Run dialog is clean
 
 ## 3. Icons showing as empty boxes `□`
 
@@ -135,6 +136,51 @@ Fixed with automatic detection at load time:
 
 Result: **zero tofu boxes in any terminal**, with the full experience kept for
 terminals that do have the font.
+
+## 15. `Loading personal and system profiles took 1415ms.` on startup
+
+A user screenshot showed this line above the prompt. It is printed by the host
+**after** the profile finishes, and only when the combined load time exceeds
+**500 ms** — a hard-coded threshold with no environment variable to disable it.
+
+Two things were wrong:
+
+**a) `-NoLogo` was only applied to PowerShell 7.** That switch is the only
+supported way to suppress the message, but the installer patched just the
+`Windows.Terminal.PowershellCore` entry, so the classic **Windows PowerShell
+5.1** tab still printed it. The installer now walks *every* profile in
+`settings.json` whose `commandline` matches `powershell.exe` / `pwsh.exe` and
+appends `-NoLogo` to any that lacks it.
+
+**b) The workaround in the profile never worked.** SECTION 10 used to spawn a
+background runspace that slept for a second and called `Clear-Host` to wipe the
+message. A background runspace has no interactive host, so `Clear-Host` always
+threw *"A command that prompts the user failed because the host program … does
+not support user interaction"* and the `catch` swallowed it — while still paying
+for a runspace on every start. It is gone; the intent is documented in place.
+
+Verified by probe: with a deliberately slowed profile, `-NoExit -File` prints
+the message and `-NoLogo -NoExit -File` does not.
+
+Remaining case: launching `pwsh` from the Run dialog passes no `-NoLogo`, so a
+genuinely slow machine can still show the message. Speed is the only lever
+there — see the load-time breakdown below.
+
+### Where the load time goes
+
+Measured on a warm profile (~510 ms total, i.e. right at the threshold):
+
+| Part | Cost |
+|---|---|
+| `oh-my-posh init` + `Invoke-Expression` | ~208 ms |
+| `Import-Module PSReadLine` | ~102 ms |
+| PSReadLine options + 15 key bindings | ~74 ms |
+| `Get-Module -ListAvailable PSReadLine` | ~43 ms |
+| Nerd Font detection, PATH, encoding, aliases | rest |
+
+Cold start is worse (JIT + antivirus), which is what produced the 1415 ms
+figure. Note that `Add-Type` was deliberately avoided in the font check: it
+costs ~470 ms on its own.
 
 ---
 

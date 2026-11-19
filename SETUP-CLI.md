@@ -156,6 +156,11 @@ Path:
     },
     "list": [
       {
+        "commandline": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoLogo",
+        "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+        "name": "Windows PowerShell"
+      },
+      {
         "commandline": "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\pwsh.exe -NoLogo",
         "guid": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
         "name": "PowerShell",
@@ -173,7 +178,12 @@ Path:
 - The colours replace the stock `#0C0C0C` background and `#FFFFFF` foreground.
   Pure black on pure white is the harshest combination for long sessions;
   the soft charcoal + off-white pair reduces halation noticeably.
-- `-NoLogo` suppresses the `PowerShell 7.7.0` startup banner.
+- `-NoLogo` suppresses the `PowerShell 7.7.0` startup banner **and** the
+  `Loading personal and system profiles took Xms` line. The 500 ms threshold
+  behind that line is hard-coded in PowerShell with no override, so `-NoLogo`
+  is the only supported fix — and it must be on **every** PowerShell profile,
+  not just PowerShell 7. The installer appends it to any `powershell.exe` /
+  `pwsh.exe` entry that lacks it.
 
 > The file **must stay UTF-8 without a BOM** — Windows Terminal refuses to
 > parse a BOM'd JSON file. The installer writes it with

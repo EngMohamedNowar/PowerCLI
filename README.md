@@ -266,6 +266,7 @@ shaped the way it is — is in **[DESIGN.md](DESIGN.md)**.
 | Symptom | Fix |
 |---|---|
 | Prompt shows empty boxes `□` | The profile auto-detects this and loads the plain theme. If boxes persist, set `$env:POWERCLI_PLAIN='1'` and run `reload-profile`, then restart Windows Terminal |
+| `Loading personal and system profiles took 1415ms.` | load exceeded PowerShell's hard-coded 500 ms threshold. The installer puts `-NoLogo` on every PowerShell profile, which suppresses it — re-run `Install-CLI.ps1`, then restart Windows Terminal. Launching `pwsh` from the Run dialog has no `-NoLogo`, so only speed helps there |
 | `. $PROFILE` → "not recognized" | run `Install-CLI.ps1` |
 | Console shows `?` instead of symbols | codepage is 437 — the profile forces UTF-8 |
 | Terminal settings ignored | `settings.json` must be UTF-8 **without** BOM |
